@@ -1,0 +1,26 @@
+# Gói miễn phí của Render cho máy ngủ sau 15 phút không ai truy cập, đánh thức lại
+# mất khoảng 50 giây. Với buổi bảo vệ thì 50 giây màn hình trắng là quá lâu, nên
+# lịch này gọi /api/health mỗi 10 phút để giữ máy thức.
+#
+# Lưu ý: lịch của GitHub Actions chạy trễ vài phút là chuyện bình thường, đừng coi
+# đây là bảo đảm tuyệt đối. Trước giờ bảo vệ vẫn nên mở sẵn trang trước vài phút.
+name: Giữ API thức
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi health check
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 \
+                   "${{ vars.API_URL }}/api/health") && [ "$code" = "200" ] && {
+              echo "API tỉnh, HTTP $code"; exit 0; }
+            echo "lần $i chưa được (HTTP $code), thử lại…"; sleep 20
+          done
+          echo "Không đánh thức được API sau 3 lần"; exit 1

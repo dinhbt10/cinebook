@@ -1,0 +1,15 @@
+bin/
+obj/
+node_modules/
+dist/
+.vs/
+.vscode/
+*.user
+appsettings.Development.json
+appsettings.Local.json
+.env
+.env.local
+web/node_modules/
+src/CineBook.Api/wwwroot/
+web/dist/
+.DS_Store
