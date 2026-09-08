@@ -3,6 +3,18 @@
 Giao diện chạy trên **Vercel**, API chạy trên **Render**, cơ sở dữ liệu là **Neon**.
 Cả ba đều dùng gói miễn phí.
 
+Dự án tách làm **hai repo**, mỗi cái deploy một nơi:
+
+| Repo | Nội dung | Deploy |
+|---|---|---|
+| `CineBook-API` | Backend: `Dockerfile`, `src/`, `tests/` | Render |
+| `CineBook` | Frontend: chính là nội dung thư mục `web/` | Vercel |
+
+Ở máy, thư mục `web/` nằm lồng bên trong nhưng có `.git` riêng, nên repo backend ghi
+nhận nó thành một gitlink rỗng. Vô hại với Docker (`.dockerignore` đã loại `web`),
+nhưng trên GitHub nó hiện thành thư mục xám rỗng. Muốn gọn thì trong repo backend chạy
+`git rm --cached web` rồi thêm `web/` vào `.gitignore`.
+
 ```
 Trình duyệt
     │
@@ -32,11 +44,24 @@ tên miền với giao diện — đúng bài học đã gặp khi chạy ở m�
 
 1. Tạo tài khoản ở <https://neon.tech>, tạo project `cinebook`, chọn vùng **Singapore**
    cho gần Việt Nam.
-2. Copy chuỗi kết nối, đổi sang dạng Npgsql hiểu được:
+2. Bấm **Connect**, copy chuỗi kết nối rồi đổi sang dạng Npgsql hiểu được:
+
+```bash
+python3 tools/neon-connstring.py 'postgresql://...dán vào đây...'
+```
+
+Npgsql **không đọc được** dạng URI mà Neon đưa, nó cần dạng `Khoá=Giá trị;`. Script
+cũng bỏ luôn hậu tố `-pooler` trong tên máy chủ: pooler của Neon chạy chế độ
+transaction nên không giữ được prepared statement mà EF Core hay dùng, trong khi
+ứng dụng .NET đã có sẵn bể kết nối của Npgsql rồi.
+
+Kết quả có dạng:
 
 ```
-Host=ep-xxx.ap-southeast-1.aws.neon.tech;Database=cinebook;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true
+Host=ep-xxx.ap-southeast-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=...;SSL Mode=Require;Trust Server Certificate=true
 ```
+
+> Tên cơ sở dữ liệu mặc định của Neon là **`neondb`**, không phải `cinebook` — đừng sửa tay.
 
 Không cần tự chạy migration: API bật `Database:AutoMigrate` nên tự áp lúc khởi động,
 và `DbSeeder` có chốt `if (Users.Any())` nên dữ liệu mẫu chỉ tạo đúng một lần.
@@ -62,9 +87,12 @@ openssl rand -base64 24   # cho Payment__Mock__Secret
    | Mục | Giá trị |
    |---|---|
    | Language | **Docker** |
-   | Dockerfile Path | `./Dockerfile` |
-   | Instance Type | Free |
-   | Health Check Path | `/api/health` |
+   | Branch | `main` |
+   | Region | **Singapore** — cùng vùng Neon |
+   | **Root Directory** | **để trống** — `Dockerfile` nằm ngay gốc repo |
+   | Instance Type | **Free** ($0, 0.1 CPU, 512 MB) |
+   | Dockerfile Path | `./Dockerfile` *(trong mục **Advanced**)* |
+   | Health Check Path | `/api/health` *(trong mục **Advanced**)* |
 
 3. Đặt biến môi trường (Environment):
 
@@ -104,9 +132,13 @@ Chưa đặt `Payment__VnPay__PublicBaseUrl` và `AppBaseUrl` vội — bước 
    | Mục | Giá trị |
    |---|---|
    | Framework Preset | Vite |
-   | **Root Directory** | **`web`** |
+   | **Root Directory** | **để trống** |
    | Build Command | `npm run build` (mặc định) |
    | Output Directory | `dist` (mặc định) |
+
+   > Repo `CineBook` **chính là** dự án vite — `package.json` và `vite.config.ts` nằm
+   > ngay ở gốc. Điền `web` vào Root Directory sẽ hỏng vì trong repo đó không có
+   > thư mục nào tên `web`.
 
    `vite.config.ts` tự xuất ra `dist` khi thấy biến `VERCEL`, còn build ở máy thì vẫn
    xuất thẳng vào `wwwroot` như cũ.
