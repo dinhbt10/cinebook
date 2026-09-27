@@ -29,6 +29,9 @@ export interface Showtime {
   availableSeats: number; totalSeats: number; isOnSale: boolean
 }
 
+/** Giá vé theo từng loại ghế của một suất (/api/showtimes/price-preview). */
+export interface SeatTypePrices { standard: number; vip: number; couple: number }
+
 export type SeatStatus = 'Available' | 'Held' | 'Sold' | 'Maintenance'
 export interface SeatMapSeat {
   seatId: string; rowLabel: string; number: number; label: string

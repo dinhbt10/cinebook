@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ban, CalendarPlus, Power } from 'lucide-react'
 import { api, ApiError } from '@/lib/api'
-import type { Cinema, MovieListItem, Room, Showtime } from '@/lib/types'
-import { isoDateVN, money, ROOM_TYPE_LABEL, SUBTITLE_LABEL, time } from '@/lib/format'
+import type { Cinema, MovieListItem, Room, SeatTypePrices, Showtime } from '@/lib/types'
+import { isoDateVN, money, ROOM_TYPE_LABEL, SUBTITLE_LABEL, time, utcFromVnInput } from '@/lib/format'
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, Select, Spinner } from '@/components/ui'
 
 export default function AdminShowtimes() {
@@ -136,6 +136,10 @@ export default function AdminShowtimes() {
   )
 }
 
+const SEAT_PRICE_FIELDS: [keyof SeatTypePrices, string][] = [
+  ['standard', 'Ghế thường'], ['vip', 'Ghế VIP'], ['couple', 'Ghế đôi'],
+]
+
 function CreateShowtimeModal({ open, onClose, cinemas, movies, onCreated }: {
   open: boolean; onClose: () => void
   cinemas: Cinema[]; movies: MovieListItem[]; onCreated: () => void
@@ -145,6 +149,8 @@ function CreateShowtimeModal({ open, onClose, cinemas, movies, onCreated }: {
   const [roomId, setRoomId] = useState('')
   const [startsLocal, setStartsLocal] = useState('')
   const [basePrice, setBasePrice] = useState(75000)
+  // Chỉ giữ những ô quản trị đã sửa tay; ô còn lại lấy theo giá gợi ý.
+  const [priceOverrides, setPriceOverrides] = useState<Partial<SeatTypePrices>>({})
   const [subtitleMode, setSubtitleMode] = useState('Subtitled')
   const [openForSale, setOpenForSale] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -156,16 +162,34 @@ function CreateShowtimeModal({ open, onClose, cinemas, movies, onCreated }: {
   })
 
   /** Người dùng nhập giờ Việt Nam, backend nhận UTC. */
-  const startsAtUtc = useMemo(() => {
-    if (!startsLocal) return ''
-    return new Date(new Date(startsLocal).getTime() - 7 * 3600_000).toISOString().slice(0, 19) + 'Z'
-  }, [startsLocal])
+  const startsAtUtc = useMemo(() => (startsLocal ? utcFromVnInput(startsLocal) : ''), [startsLocal])
+
+  // Giá gợi ý tính theo bảng giá ở backend (loại phòng, suất sáng, cuối tuần…).
+  const { data: suggested } = useQuery({
+    queryKey: ['price-preview', roomId, startsAtUtc, basePrice],
+    queryFn: () => api.get<SeatTypePrices>(
+      `/api/showtimes/price-preview?roomId=${roomId}` +
+      `&startsAtUtc=${encodeURIComponent(startsAtUtc)}&basePrice=${basePrice}`),
+    enabled: !!roomId && !!startsAtUtc && basePrice > 0,
+  })
+
+  const priceOf = (k: keyof SeatTypePrices) => priceOverrides[k] ?? suggested?.[k]
+
+  const setPrice = (k: keyof SeatTypePrices, value: string) =>
+    setPriceOverrides((o) => {
+      const next = { ...o }
+      // Xoá trắng ô thì quay về giá gợi ý.
+      if (value === '') delete next[k]
+      else next[k] = Number(value)
+      return next
+    })
 
   const create = useMutation({
     mutationFn: () => api.post('/api/showtimes', {
       movieId, roomId, startsAtUtc, basePrice, subtitleMode, openForSale,
+      seatPrices: { standard: priceOf('standard'), vip: priceOf('vip'), couple: priceOf('couple') },
     }),
-    onSuccess: () => { setError(null); onCreated(); onClose() },
+    onSuccess: () => { setError(null); setPriceOverrides({}); onCreated(); onClose() },
     onError: (e: ApiError) => setError(e.message),
   })
 
@@ -208,8 +232,8 @@ function CreateShowtimeModal({ open, onClose, cinemas, movies, onCreated }: {
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Giá cơ sở (đồng)" hint="Ghế VIP, ghế đôi và loại phòng sẽ tự nhân hệ số">
-            <Input type="number" required min={0} step={1000} value={basePrice}
+          <Field label="Giá cơ sở (đồng)" hint="Dùng để tính giá gợi ý cho từng loại ghế bên dưới">
+            <Input type="number" required min={1000} step={1000} value={basePrice}
                    onChange={(e) => setBasePrice(Number(e.target.value))} />
           </Field>
           <Field label="Ngôn ngữ">
@@ -219,6 +243,30 @@ function CreateShowtimeModal({ open, onClose, cinemas, movies, onCreated }: {
               <option value="Original">Nguyên bản</option>
             </Select>
           </Field>
+        </div>
+
+        <div className="rounded-xl border border-ink-700 bg-ink-900 p-3.5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[13px] font-medium text-muted">Giá vé theo loại ghế (đồng)</p>
+            {Object.keys(priceOverrides).length > 0 && (
+              <button type="button" onClick={() => setPriceOverrides({})}
+                      className="text-[12px] text-brand-400 hover:underline">
+                Khôi phục giá gợi ý
+              </button>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {SEAT_PRICE_FIELDS.map(([k, label]) => (
+              <Field key={k} label={label}>
+                <Input type="number" required min={1000} step={1000} value={priceOf(k) ?? ''}
+                       onChange={(e) => setPrice(k, e.target.value)} />
+              </Field>
+            ))}
+          </div>
+          <p className="mt-2.5 text-[12px] text-faint">
+            Tự điền theo bảng giá khi đã chọn phòng và giờ chiếu (tính cả loại phòng, suất sáng,
+            cuối tuần). Sửa ô nào thì ô đó giữ giá bạn nhập — khách trả đúng giá ở đây.
+          </p>
         </div>
 
         <label className="flex items-center gap-2.5 text-sm text-muted">

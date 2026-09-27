@@ -19,7 +19,8 @@ public class ShowtimeService(
     /// <summary>
     /// Tạo suất chiếu. Áp BR-16 (không chồng giờ trong cùng phòng),
     /// BR-17 (tự tính giờ kết thúc) và sinh sẵn một dòng ShowtimeSeat cho mỗi ghế
-    /// với giá đã chốt theo BR-18.
+    /// với giá chốt luôn: giá quản trị nhập cho từng loại ghế, hoặc tính theo BR-18
+    /// nếu không nhập.
     /// </summary>
     public async Task<Result<Guid>> CreateAsync(CreateShowtimeRequest req, CancellationToken ct = default)
     {
@@ -34,6 +35,9 @@ public class ShowtimeService(
 
         if (req.StartsAtUtc <= clock.UtcNow)
             return Result<Guid>.Fail("START_IN_PAST", "Giờ chiếu phải ở tương lai.");
+
+        if (req.SeatPrices is { } p && (p.Standard <= 0 || p.Vip <= 0 || p.Couple <= 0))
+            return Result<Guid>.Fail("BAD_PRICE", "Giá vé của mọi loại ghế phải lớn hơn 0.");
 
         // BR-17: giờ kết thúc = giờ bắt đầu + thời lượng phim + thời gian dọn phòng.
         var endsAtUtc = req.StartsAtUtc
@@ -80,15 +84,48 @@ public class ShowtimeService(
                 ShowtimeId = showtime.Id,
                 SeatId = seat.Id,
                 Status = SeatStatus.Available,
-                Price = pricing.CalculateSeatPrice(
-                    req.BasePrice, req.StartsAtUtc, room.CinemaId,
-                    room.RoomType, seat.SeatType, rules)
+                Price = req.SeatPrices is { } prices
+                    ? PriceOf(prices, seat.SeatType)
+                    : pricing.CalculateSeatPrice(
+                        req.BasePrice, req.StartsAtUtc, room.CinemaId,
+                        room.RoomType, seat.SeatType, rules)
             });
         }
 
         await db.SaveChangesAsync(ct);
         return Result<Guid>.Ok(showtime.Id);
     }
+
+    /// <summary>
+    /// Giá từng loại ghế tính theo bảng giá (BR-18) cho một phòng và giờ chiếu, để form
+    /// tạo suất điền sẵn. Quản trị xem được giá thật khách sẽ trả và sửa lại trước khi lưu.
+    /// </summary>
+    public async Task<Result<SeatTypePrices>> PreviewPricesAsync(
+        Guid roomId, DateTime startsAtUtc, decimal basePrice, CancellationToken ct = default)
+    {
+        var room = await db.Rooms.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roomId, ct);
+        if (room is null) return Result<SeatTypePrices>.Fail("ROOM_NOT_FOUND", "Không tìm thấy phòng chiếu.");
+
+        // Tham số query có hậu tố Z được ASP.NET đọc thành giờ máy chủ (Kind = Local),
+        // phải đổi về UTC trước khi cộng 7 tiếng ra giờ Việt Nam.
+        var utc = startsAtUtc.Kind == DateTimeKind.Local
+            ? startsAtUtc.ToUniversalTime()
+            : DateTime.SpecifyKind(startsAtUtc, DateTimeKind.Utc);
+
+        var rules = await pricing.LoadActiveRulesAsync(ct);
+        decimal Price(SeatType type) =>
+            pricing.CalculateSeatPrice(basePrice, utc, room.CinemaId, room.RoomType, type, rules);
+
+        return Result<SeatTypePrices>.Ok(
+            new SeatTypePrices(Price(SeatType.Standard), Price(SeatType.Vip), Price(SeatType.Couple)));
+    }
+
+    private static decimal PriceOf(SeatTypePrices prices, SeatType type) => type switch
+    {
+        SeatType.Vip => prices.Vip,
+        SeatType.Couple => prices.Couple,
+        _ => prices.Standard,
+    };
 
     public async Task<Result> SetOnSaleAsync(Guid showtimeId, bool onSale, CancellationToken ct = default)
     {

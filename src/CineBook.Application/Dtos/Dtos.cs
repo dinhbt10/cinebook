@@ -38,8 +38,15 @@ public record ShowtimeListItemDto(Guid Id, Guid MovieId, string MovieTitle, Guid
     string CinemaName, string RoomType, DateTime StartsAtUtc, DateTime EndsAtUtc,
     string SubtitleMode, decimal FromPrice, int AvailableSeats, int TotalSeats, bool IsOnSale);
 
+/// <summary>Giá vé theo từng loại ghế của một suất. Ghế ưu tiên tính như ghế thường.</summary>
+public record SeatTypePrices(decimal Standard, decimal Vip, decimal Couple);
+
+/// <summary>
+/// SeatPrices để trống thì giá từng ghế tính theo bảng giá (BR-18) từ BasePrice;
+/// có thì dùng đúng giá quản trị đã chốt cho từng loại ghế.
+/// </summary>
 public record CreateShowtimeRequest(Guid MovieId, Guid RoomId, DateTime StartsAtUtc,
-    decimal BasePrice, SubtitleMode SubtitleMode, bool OpenForSale);
+    decimal BasePrice, SubtitleMode SubtitleMode, bool OpenForSale, SeatTypePrices? SeatPrices = null);
 
 // ---------- Sơ đồ ghế ----------
 public record SeatMapSeatDto(Guid SeatId, string RowLabel, int Number, string Label,

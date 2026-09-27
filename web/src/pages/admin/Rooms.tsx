@@ -137,6 +137,8 @@ function CreateRoomModal({ open, onClose, cinemas, cinemaId, setCinemaId, onCrea
           <b className="text-cream">{String.fromCharCode(65)}</b> đến{' '}
           <b className="text-cream">{String.fromCharCode(64 + Math.max(1, rowCount))}</b>,
           hàng cuối là ghế đôi theo thông lệ rạp Việt Nam.
+          <br />Giá vé ghế thường, VIP và ghế đôi đặt ở bước <b className="text-cream">tạo suất chiếu</b>,
+          vì mỗi suất một giá tuỳ khung giờ và ngày chiếu.
         </div>
 
         <div className="flex justify-end gap-2 pt-1">

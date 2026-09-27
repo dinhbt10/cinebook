@@ -33,6 +33,14 @@ public class ShowtimesController(ShowtimeService showtimes, BookingService booki
     public async Task<IActionResult> Create(CreateShowtimeRequest req, CancellationToken ct) =>
         (await showtimes.CreateAsync(req, ct)).ToActionResult();
 
+    /// <summary>Giá gợi ý cho từng loại ghế theo bảng giá, để form tạo suất điền sẵn.</summary>
+    [HttpGet("price-preview")]
+    [Authorize(Roles = Roles.AdminOrManager)]
+    public async Task<IActionResult> PricePreview(
+        [FromQuery] Guid roomId, [FromQuery] DateTime startsAtUtc, [FromQuery] decimal basePrice,
+        CancellationToken ct) =>
+        (await showtimes.PreviewPricesAsync(roomId, startsAtUtc, basePrice, ct)).ToActionResult();
+
     [HttpPatch("{id:guid}/on-sale")]
     [Authorize(Roles = Roles.AdminOrManager)]
     public async Task<IActionResult> SetOnSale(Guid id, [FromQuery] bool value, CancellationToken ct) =>
