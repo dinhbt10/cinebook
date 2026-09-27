@@ -92,6 +92,18 @@ public record VoucherDto(Guid Id, string Code, string Name, string DiscountType,
     decimal Value, decimal? MaxDiscount, decimal MinOrderAmount, DateTime EndsAtUtc,
     bool Saved, bool Usable, string? Reason, decimal DiscountAmount);
 
+/// <summary>
+/// Voucher cho trang quản trị: đủ mọi trường, kể cả voucher đã tắt hay hết hạn.
+/// Locked = đã có đơn dùng, nên không đổi được mã, loại giảm, giá trị và không xoá hẳn được.
+/// </summary>
+public record AdminPromotionDto(Guid Id, string Code, string Name, string DiscountType,
+    decimal Value, decimal? MaxDiscount, decimal MinOrderAmount, DateTime StartsAtUtc, DateTime EndsAtUtc,
+    int? UsageLimit, int UsedCount, int PerUserLimit, bool IsActive, bool Locked);
+
+public record SavePromotionRequest(string Code, string Name, DiscountType DiscountType, decimal Value,
+    decimal? MaxDiscount, decimal MinOrderAmount, DateTime StartsAtUtc, DateTime EndsAtUtc,
+    int? UsageLimit, int PerUserLimit, bool IsActive);
+
 // ---------- Báo cáo ----------
 public record RevenuePointDto(DateOnly Date, decimal TicketRevenue, decimal ConcessionRevenue, int BookingCount);
 public record MovieRevenueDto(Guid MovieId, string Title, decimal Revenue, int TicketCount, double OccupancyRate);

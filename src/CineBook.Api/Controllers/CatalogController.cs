@@ -115,6 +115,43 @@ public class CatalogController(
     [Authorize]
     public async Task<IActionResult> RemoveVoucher(Guid id, CancellationToken ct) =>
         (await promotions.RemoveAsync(User.UserId(), id, ct)).ToActionResult();
+
+    // ---------------------------------------------------------------- quản trị voucher
+    // Voucher áp cho toàn hệ thống nên chỉ quản trị viên được quản lý; quản lý rạp
+    // chỉ phụ trách một rạp (BR-19).
+
+    /// <summary>Mọi voucher kể cả đã tắt hay hết hạn — khác /promotions chỉ trả voucher đang chạy.</summary>
+    [HttpGet("promotions/all")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> AllPromotions(CancellationToken ct) =>
+        Ok(await promotions.GetAllForAdminAsync(ct));
+
+    [HttpPost("promotions")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> CreatePromotion(SavePromotionRequest req, CancellationToken ct) =>
+        (await promotions.CreateAsync(req, ct)).ToActionResult();
+
+    [HttpPut("promotions/{id:guid}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> UpdatePromotion(Guid id, SavePromotionRequest req, CancellationToken ct) =>
+        (await promotions.UpdateAsync(id, req, ct)).ToActionResult();
+
+    [HttpPatch("promotions/{id:guid}/active")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> SetPromotionActive(Guid id, [FromQuery] bool value, CancellationToken ct) =>
+        (await promotions.SetActiveAsync(id, value, ct)).ToActionResult();
+
+    [HttpDelete("promotions/{id:guid}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> DeletePromotion(Guid id, CancellationToken ct)
+    {
+        var result = await promotions.DeleteAsync(id, ct);
+        if (!result.Succeeded) return result.ToActionResult();
+
+        return result.Value
+            ? NoContent()
+            : Ok(new { message = "Voucher đã có đơn sử dụng nên được chuyển sang ngừng áp dụng thay vì xoá." });
+    }
 }
 
 public record SaveVoucherRequest(string Code);

@@ -187,15 +187,25 @@ ngay sau lần seed đầu tiên là chuẩn nhất.
 ## Máy ngủ đông
 
 Gói Render miễn phí cho máy **ngủ sau 15 phút** không ai truy cập, đánh thức mất
-khoảng **50 giây**. Ba cách xử lý, dùng kết hợp:
+khoảng **50 giây**.
 
-1. `.github/workflows/keep-api-awake.yml` gọi `/api/health` mỗi 10 phút.
-   Vào repo → Settings → Secrets and variables → Actions → **Variables** → thêm
-   `API_URL` = `https://<api>.onrender.com`.
-2. Hoặc <https://cron-job.org> (miễn phí, chạy đúng giờ hơn lịch của GitHub Actions).
-3. **Trước buổi bảo vệ vẫn nên mở trang trước vài phút.** Lịch cron nào cũng có thể trễ.
+> **Chỉ giữ máy thức vào những ngày cần trình bày.** Neon free tier giới hạn giờ
+> compute mỗi tháng, và Neon chỉ ngủ khi 5 phút liền không có query nào. Trước đây
+> job dọn đơn chạy mỗi phút, cộng với việc giữ Render thức, làm Neon thức 24/7
+> (khoảng 6 CU-giờ mỗi ngày) và hết quota sau chừng hai tuần rưỡi — API không khởi
+> động được nữa. Nay mặc định `KeepAwake:Enabled = false` và job chạy 30 phút một
+> lần (`Booking:ExpireJobIntervalMinutes`), nhưng vẫn đừng để giữ thức cả tháng.
 
-Neon free tier cũng tự ngủ nhưng đánh thức chỉ khoảng nửa giây, không đáng lo.
+Trước buổi bảo vệ khoảng một ngày thì bật các cách dưới đây, xong thì tắt lại:
+
+1. Trên Render đặt `KeepAwake__Enabled = true` — API tự gọi chính nó mỗi 10 phút
+   để không bị ngủ (không đánh thức được máy đã ngủ).
+2. `.github/workflows/keep-api-awake.yml` gọi `/api/health` mỗi 10 phút, đánh thức
+   được cả máy đã ngủ. Vào repo → Settings → Secrets and variables → Actions →
+   **Variables** → thêm `API_URL` = `https://<api>.onrender.com`. Không dùng nữa thì
+   Actions → "Giữ API thức" → **Disable workflow**.
+3. Hoặc <https://cron-job.org> (miễn phí, chạy đúng giờ hơn lịch của GitHub Actions).
+4. **Trước buổi bảo vệ vẫn nên mở trang trước vài phút.** Lịch cron nào cũng có thể trễ.
 
 ## Sự cố hay gặp
 
@@ -207,3 +217,4 @@ Neon free tier cũng tự ngủ nhưng đánh thức chỉ khoảng nửa giây,
 | Thanh toán xong quay về trang lỗi | `Payment__VnPay__AppBaseUrl` chưa trỏ tên miền Vercel |
 | Vé cũ báo `VE_GIA` sau khi deploy | `Qr__Secret` đã bị đổi, chữ ký vé cũ không còn khớp |
 | Trang chủ Render hiện dòng chữ thay vì giao diện | Đúng như thiết kế — giao diện nằm trên Vercel |
+| API chết lúc khởi động, log ghi `53000: Your account or project has exceeded the quota` | Neon hết giờ compute của tháng — chờ sang kỳ mới, nâng gói, hoặc tạo project Neon mới rồi đổi `ConnectionStrings__Default`. Xem mục "Máy ngủ đông" để khỏi bị lại |

@@ -31,7 +31,7 @@ public static class ApiExtensions
         {
             "NOT_FOUND" or "MOVIE_NOT_FOUND" or "ROOM_NOT_FOUND" or "SHOWTIME_NOT_FOUND"
                 or "CINEMA_NOT_FOUND" or "TXN_NOT_FOUND" => StatusCodes.Status404NotFound,
-            "SEATS_TAKEN" or "SHOWTIME_OVERLAP" => StatusCodes.Status409Conflict,
+            "SEATS_TAKEN" or "SHOWTIME_OVERLAP" or "PROMO_CODE_TAKEN" => StatusCodes.Status409Conflict,
             "INVALID_CREDENTIALS" or "BAD_SIGNATURE" => StatusCodes.Status401Unauthorized,
             "ACCOUNT_LOCKED" => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status400BadRequest

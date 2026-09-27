@@ -27,7 +27,7 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
     public DbSet<PriceRule> PriceRules => Set<PriceRule>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
-    public Task<int> SaveChangesAsync(CancellationToken ct = default) => base.SaveChangesAsync(ct);
+    public override Task<int> SaveChangesAsync(CancellationToken ct = default) => base.SaveChangesAsync(ct);
 
     protected override void OnModelCreating(ModelBuilder b)
     {

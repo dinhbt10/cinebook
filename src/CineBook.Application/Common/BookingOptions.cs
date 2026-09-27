@@ -28,4 +28,10 @@ public class BookingOptions
     /// <summary>Cho phép quét vé từ bao lâu trước giờ chiếu.</summary>
     public int CheckInOpenBeforeMinutes { get; set; } = 60;
     public int CheckInCloseAfterMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// Chu kỳ job dọn đơn quá hạn. Mỗi lần chạy là một câu query, mà Neon chỉ ngủ khi
+    /// 5 phút liền không có query nào — đặt dày quá thì Neon thức 24/7 và hết quota.
+    /// </summary>
+    public int ExpireJobIntervalMinutes { get; set; } = 30;
 }
