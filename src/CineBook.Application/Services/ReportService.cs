@@ -16,9 +16,10 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
         var (todayFrom, todayTo) = LocalDayRangeUtc(DateOnly.FromDateTime(LocalNow()));
         var monthFrom = LocalDayRangeUtc(new DateOnly(LocalNow().Year, LocalNow().Month, 1)).from;
 
+        // Cùng định nghĩa doanh thu với biểu đồ theo ngày (chỉ đơn Paid): trước đây ô này cộng
+        // cả đơn đã hoàn tiền với đủ Total, nên hai con số trên cùng một trang không khớp nhau.
         var paid = db.Bookings.AsNoTracking()
-            .Where(b => b.Status == BookingStatus.Paid || b.Status == BookingStatus.Refunded)
-            .Where(b => b.PaidAtUtc != null);
+            .Where(b => b.Status == BookingStatus.Paid && b.PaidAtUtc != null);
 
         if (cinemaId is { } cid)
             paid = paid.Where(b => b.Showtime.Room.CinemaId == cid);
@@ -29,8 +30,9 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
         var revenueMonth = await paid.Where(b => b.PaidAtUtc >= monthFrom)
             .SumAsync(b => (decimal?)b.Total, ct) ?? 0m;
         var bookingsToday = await today.CountAsync(ct);
-        var ticketsToday = await db.Tickets.AsNoTracking()
-            .CountAsync(t => t.Booking.PaidAtUtc >= todayFrom && t.Booking.PaidAtUtc < todayTo, ct);
+        // Đếm vé của chính các đơn trên, để theo đúng rạp (BR-19) và bỏ vé đã hủy.
+        var ticketsToday = await today.SelectMany(b => b.Tickets)
+            .CountAsync(t => t.Status != TicketStatus.Cancelled, ct);
 
         var showtimesQuery = db.Showtimes.AsNoTracking()
             .Where(s => !s.IsCancelled && s.StartsAtUtc >= todayFrom && s.StartsAtUtc < todayTo);
@@ -83,13 +85,17 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
             .Where(s => !s.IsCancelled && s.StartsAtUtc >= fromUtc && s.StartsAtUtc < toUtc);
         if (cinemaId is { } cid) q = q.Where(s => s.Room.CinemaId == cid);
 
+        // Doanh thu lấy từ đơn đã thanh toán (tiền ghế trừ giảm giá) — cùng cách tính với
+        // biểu đồ theo ngày. Cộng giá niêm yết của ghế Sold sẽ bỏ qua voucher đã trừ.
         var rows = await q.Select(s => new
         {
             s.MovieId,
             s.Movie.Title,
             Total = s.Seats.Count,
             Sold = s.Seats.Count(x => x.Status == SeatStatus.Sold),
-            Revenue = s.Seats.Where(x => x.Status == SeatStatus.Sold).Sum(x => (decimal?)x.Price) ?? 0m
+            Revenue = db.Bookings
+                .Where(b => b.ShowtimeId == s.Id && b.Status == BookingStatus.Paid)
+                .Sum(b => (decimal?)(b.SeatsSubtotal - b.DiscountAmount)) ?? 0m
         }).ToListAsync(ct);
 
         return rows.GroupBy(r => new { r.MovieId, r.Title })

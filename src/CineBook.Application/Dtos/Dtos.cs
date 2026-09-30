@@ -16,7 +16,8 @@ public record MovieListItemDto(Guid Id, string Title, int DurationMinutes, strin
 public record MovieDetailDto(Guid Id, string Title, string? OriginalTitle, string? Description,
     int DurationMinutes, string AgeRating, string? Director, string? Cast, string? Language,
     string? PosterUrl, string? BackdropUrl, string? TrailerUrl, DateOnly ReleaseDate,
-    string Status, IEnumerable<string> Genres);
+    string Status, IEnumerable<string> Genres,
+    string? Country, DateOnly? EndDate, IEnumerable<Guid> GenreIds);
 
 public record SaveMovieRequest(string Title, string? OriginalTitle, string? Description,
     int DurationMinutes, DateOnly ReleaseDate, DateOnly? EndDate, AgeRating AgeRating,
@@ -36,7 +37,8 @@ public record CreateRoomRequest(Guid CinemaId, string Name, RoomType RoomType,
 // ---------- Suất chiếu ----------
 public record ShowtimeListItemDto(Guid Id, Guid MovieId, string MovieTitle, Guid RoomId, string RoomName,
     string CinemaName, string RoomType, DateTime StartsAtUtc, DateTime EndsAtUtc,
-    string SubtitleMode, decimal FromPrice, int AvailableSeats, int TotalSeats, bool IsOnSale);
+    string SubtitleMode, decimal FromPrice, int AvailableSeats, int TotalSeats, bool IsOnSale,
+    bool IsCancelled = false);
 
 /// <summary>Giá vé theo từng loại ghế của một suất. Ghế ưu tiên tính như ghế thường.</summary>
 public record SeatTypePrices(decimal Standard, decimal Vip, decimal Couple);
@@ -67,7 +69,7 @@ public record BookingDto(Guid Id, string Code, string Status, Guid ShowtimeId, s
     string CinemaName, string RoomName, DateTime StartsAtUtc,
     IEnumerable<BookingSeatDto> Seats, IEnumerable<BookingComboDto> Combos,
     decimal SeatsSubtotal, decimal ConcessionSubtotal, decimal DiscountAmount, decimal Total,
-    DateTime HoldExpiresAtUtc, int SecondsLeft, DateTime? PaidAtUtc);
+    DateTime HoldExpiresAtUtc, int SecondsLeft, DateTime? PaidAtUtc, string? CancelReason = null);
 
 // ---------- Thanh toán ----------
 public record PaymentMethodDto(string Code, string DisplayName);

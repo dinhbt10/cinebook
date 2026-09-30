@@ -44,21 +44,27 @@ public class RefundService(
             return Result<decimal>.Fail("TOO_LATE",
                 $"Chỉ được hủy vé trước giờ chiếu ít nhất {_opt.RefundPartialBeforeHours} giờ.");
 
-        booking.Status = BookingStatus.Cancelled;
+        // Hủy vé và hoàn tiền là MỘT việc: cổng từ chối hoàn thì mọi thay đổi phải lùi lại,
+        // nếu không khách mất vé mà không nhận lại tiền.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        booking.Status = BookingStatus.Refunded;
         booking.CancelledAtUtc = clock.UtcNow;
         booking.CancelReason = "Khách hủy vé";
         foreach (var t in booking.Tickets) t.Status = TicketStatus.Cancelled;
 
         // Trả ghế lên sàn ngay để người khác mua được.
         await bookings.ReleaseSeatsOfBookingAsync(booking.Id, ct);
-        await db.SaveChangesAsync(ct);
 
         var refund = await payments.RefundAsync(booking.Id, rate, "Khách hủy vé", userId, ct);
-        if (!refund.Succeeded) return refund;
+        if (!refund.Succeeded)
+        {
+            await tx.RollbackAsync(ct);
+            return refund;
+        }
 
-        booking.Status = BookingStatus.Refunded;
         await db.SaveChangesAsync(ct);
-
+        await tx.CommitAsync(ct);
         return Result<decimal>.Ok(refund.Value);
     }
 }

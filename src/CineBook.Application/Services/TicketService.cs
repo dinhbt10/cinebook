@@ -9,19 +9,20 @@ public class TicketService(IAppDbContext db, IQrSigner qrSigner)
     public async Task<IReadOnlyList<TicketDto>> GetByBookingAsync(
         Guid bookingId, Guid userId, CancellationToken ct = default)
     {
-        return await db.Tickets.AsNoTracking()
+        var tickets = await db.Tickets.AsNoTracking()
             .Include(t => t.Seat)
             .Include(t => t.Booking).ThenInclude(b => b.Showtime).ThenInclude(s => s.Movie)
             .Include(t => t.Booking).ThenInclude(b => b.Showtime).ThenInclude(s => s.Room)
                 .ThenInclude(r => r.Cinema)
             .Where(t => t.BookingId == bookingId && t.Booking.UserId == userId)
             .OrderBy(t => t.Seat.RowLabel).ThenBy(t => t.Seat.Number)
-            .ToListAsync(ct)
-            // Chữ ký QR tính ở phía ứng dụng, không dịch được sang SQL.
-            .ContinueWith(task => (IReadOnlyList<TicketDto>)task.Result.Select(t => new TicketDto(
-                t.Id, t.Code, qrSigner.BuildPayload(t.Code), t.Seat.Label, t.Status.ToString(),
-                t.Booking.Showtime.Movie.Title, t.Booking.Showtime.Room.Cinema.Name,
-                t.Booking.Showtime.Room.Name, t.Booking.Showtime.StartsAtUtc, t.CheckedInAtUtc)).ToList(), ct);
+            .ToListAsync(ct);
+
+        // Chữ ký QR tính ở phía ứng dụng, không dịch được sang SQL.
+        return tickets.Select(t => new TicketDto(
+            t.Id, t.Code, qrSigner.BuildPayload(t.Code), t.Seat.Label, t.Status.ToString(),
+            t.Booking.Showtime.Movie.Title, t.Booking.Showtime.Room.Cinema.Name,
+            t.Booking.Showtime.Room.Name, t.Booking.Showtime.StartsAtUtc, t.CheckedInAtUtc)).ToList();
     }
 
     /// <summary>Nội dung email vé gửi cho khách sau khi thanh toán thành công.</summary>

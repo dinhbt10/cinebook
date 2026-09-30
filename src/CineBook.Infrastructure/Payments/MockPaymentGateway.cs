@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using CineBook.Application.Abstractions;
@@ -55,7 +56,7 @@ public class MockPaymentGateway(IOptions<MockGatewayOptions> options) : IPayment
     {
         var txn = Get(payload, "txn", string.Empty);
         var status = Get(payload, "status", "failed");
-        decimal.TryParse(Get(payload, "amount", "0"), out var amount);
+        decimal.TryParse(Get(payload, "amount", "0"), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount);
 
         var raw = string.Join("&", payload.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"));
         return new PaymentCallback(txn, status.Equals("success", StringComparison.OrdinalIgnoreCase), amount, raw);

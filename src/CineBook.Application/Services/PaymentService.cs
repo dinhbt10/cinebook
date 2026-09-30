@@ -135,19 +135,85 @@ public class PaymentService(
             return Result<string>.Ok("Ghi nhận thanh toán thất bại.");
         }
 
+        // Chữ ký đúng mới chứng minh dữ liệu do cổng gửi, chưa chứng minh khách trả ĐỦ tiền.
+        if (callback.Amount != payment.Amount)
+        {
+            payment.Status = PaymentStatus.Failed;
+            logger.LogError("Số tiền cổng báo {Paid} khác số tiền giao dịch {Expected} ({Txn})",
+                callback.Amount, payment.Amount, callback.ProviderTxnId);
+            await db.SaveChangesAsync(ct);
+            return Result<string>.Fail("AMOUNT_MISMATCH", "Số tiền thanh toán không khớp với đơn hàng.");
+        }
+
         payment.Status = PaymentStatus.Succeeded;
-        var confirm = await bookings.ConfirmPaidAsync(payment.BookingId, ct);
+
+        // Khách trả hai giao dịch cho cùng một đơn (bấm thanh toán ở hai tab): đơn đã có vé
+        // từ giao dịch trước, giao dịch này phải hoàn lại chứ không được giữ tiền.
+        var paidByOther = await db.Payments.AnyAsync(p => p.BookingId == payment.BookingId
+            && p.Id != payment.Id && p.Status == PaymentStatus.Succeeded, ct);
+
+        var confirm = paidByOther
+            ? Result<Booking>.Fail("ALREADY_PAID", "Đơn hàng đã được thanh toán bằng giao dịch khác.")
+            : await bookings.ConfirmPaidAsync(payment.BookingId, ct);
+
         if (!confirm.Succeeded)
         {
+            // Tiền đã bị trừ mà không giao được vé (hết giữ ghế, đơn đã đóng, trả trùng):
+            // hoàn ngay toàn bộ thay vì để khách mất tiền.
             logger.LogError("Thanh toán thành công nhưng không chốt được đơn {BookingId}: {Error}",
                 payment.BookingId, confirm.Error);
-            await db.SaveChangesAsync(ct);
-            return Result<string>.Fail(confirm.ErrorCode!, confirm.Error!);
+            return await AutoRefundAsync(payment, gateway, keepBookingStatus: paidByOther,
+                confirm.Error!, ct);
         }
 
         await db.SaveChangesAsync(ct);
         return Result<string>.Ok("Đã ghi nhận thanh toán.");
     }
+
+    private async Task<Result<string>> AutoRefundAsync(
+        Payment payment, IPaymentGateway gateway, bool keepBookingStatus, string why, CancellationToken ct)
+    {
+        var ok = await gateway.RefundAsync(payment, payment.Amount, ct);
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            Action = ok ? "AUTO_REFUND" : "REFUND_REQUIRED",
+            EntityType = nameof(Payment),
+            EntityId = payment.Id.ToString(),
+            Note = $"{payment.Amount:N0}đ — {why}"
+        });
+
+        if (!ok)
+        {
+            // Cổng từ chối hoàn: giữ Succeeded để bộ phận kế toán thấy và hoàn tay theo audit log.
+            await db.SaveChangesAsync(ct);
+            return Result<string>.Fail("REFUND_REQUIRED",
+                "Thanh toán thành công nhưng không giao được vé, cần hoàn tiền thủ công.");
+        }
+
+        payment.Status = PaymentStatus.Refunded;
+        payment.RefundedAmount = payment.Amount;
+
+        if (!keepBookingStatus)
+        {
+            var booking = await db.Bookings.FirstAsync(b => b.Id == payment.BookingId, ct);
+            booking.Status = BookingStatus.Refunded;
+            booking.CancelledAtUtc = clock.UtcNow;
+            booking.CancelReason = "Thanh toán về sau khi hết thời gian giữ ghế — đã hoàn tiền tự động.";
+            await bookings.ReleaseSeatsOfBookingAsync(booking.Id, ct);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Result<string>.Ok("Không giao được vé nên đã hoàn tiền cho khách.");
+    }
+
+    /// <summary>Số tiền của một giao dịch — cổng giả lập dùng để báo đúng số tiền đã thu.</summary>
+    public Task<decimal?> FindAmountByTxnAsync(
+        string provider, string providerTxnId, CancellationToken ct = default) =>
+        db.Payments.AsNoTracking()
+            .Where(p => p.Provider == provider && p.ProviderTxnId == providerTxnId)
+            .Select(p => (decimal?)p.Amount)
+            .FirstOrDefaultAsync(ct);
 
     /// <summary>BR-14 và BR-15: hủy vé và hoàn tiền theo chính sách.</summary>
     public async Task<Result<decimal>> RefundAsync(

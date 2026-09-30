@@ -53,14 +53,14 @@ public class CatalogController(
     [HttpPost("rooms")]
     [Authorize(Roles = Roles.AdminOrManager)]
     public async Task<IActionResult> CreateRoom(CreateRoomRequest req, CancellationToken ct) =>
-        (await rooms.CreateAsync(req, ct)).ToActionResult();
+        (await rooms.CreateAsync(req, User.ManagedCinemaId(), ct)).ToActionResult();
 
     /// <summary>BR-06: nhân viên báo ghế hỏng ngay tại rạp.</summary>
     [HttpPatch("seats/{seatId:guid}/maintenance")]
     [Authorize(Roles = Roles.StaffOrManager)]
     public async Task<IActionResult> SetSeatMaintenance(
         Guid seatId, [FromQuery] bool broken, CancellationToken ct) =>
-        (await rooms.SetSeatMaintenanceAsync(seatId, broken, ct)).ToActionResult();
+        (await rooms.SetSeatMaintenanceAsync(seatId, broken, User.ManagedCinemaId(), ct)).ToActionResult();
 
     [HttpGet("combos")]
     public async Task<IActionResult> Combos(CancellationToken ct) =>

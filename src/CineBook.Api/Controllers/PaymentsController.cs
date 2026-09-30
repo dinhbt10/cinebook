@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Net;
 using CineBook.Api.Common;
 using CineBook.Application.Dtos;
 using CineBook.Application.Services;
@@ -100,6 +102,7 @@ public class PaymentsController(
             null => new { RspCode = "00", Message = "Confirm Success" },
             "TXN_NOT_FOUND" => new { RspCode = "01", Message = "Order not found" },
             "INVALID_STATE" => new { RspCode = "02", Message = "Order already confirmed" },
+            "AMOUNT_MISMATCH" => new { RspCode = "04", Message = "Invalid amount" },
             "BAD_SIGNATURE" => new { RspCode = "97", Message = "Invalid signature" },
             _ => new { RspCode = "99", Message = "Unknown error" },
         });
@@ -133,6 +136,16 @@ public class MockGatewayController(
         // Hiển thị tiền theo cách người Việt đọc: 155.000 đ
         var amountText = decimal.TryParse(amount, out var value) ? value.ToString("N0") : amount;
 
+        // Cả ba giá trị đến thẳng từ query string. Trang này cùng nguồn với ứng dụng (token
+        // nằm trong localStorage), nên chèn thô vào HTML là mở đường cho XSS lấy token.
+        var codeHtml = WebUtility.HtmlEncode(code);
+        var txnHtml = WebUtility.HtmlEncode(txn);
+        var amountHtml = WebUtility.HtmlEncode(amountText);
+
+        // returnUrl được gán vào location.href: chỉ nhận đường dẫn cùng nguồn, chặn
+        // "javascript:…" và việc dẫn khách sang trang lạ sau khi thanh toán.
+        var safeReturnUrl = IsSameOrigin(returnUrl) ? returnUrl : "";
+
         var html = $$"""
             <!doctype html><html lang="vi"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -155,27 +168,31 @@ public class MockGatewayController(
               <h1>Cổng thanh toán giả lập</h1>
               <p class="sub">Mô phỏng VNPay / MoMo cho môi trường học tập</p>
               <dl>
-                <dt>Mã đặt vé</dt><dd>{{code}}</dd>
-                <dt>Mã giao dịch</dt><dd>{{txn}}</dd>
-                <dt>Số tiền</dt><dd><b>{{amountText}} đ</b></dd>
+                <dt>Mã đặt vé</dt><dd>{{codeHtml}}</dd>
+                <dt>Mã giao dịch</dt><dd>{{txnHtml}}</dd>
+                <dt>Số tiền</dt><dd><b>{{amountHtml}} đ</b></dd>
               </dl>
               <button class="ok"   onclick="send('success',1)">Thanh toán thành công</button>
               <button class="fail" onclick="send('failed',1)">Thanh toán thất bại</button>
               <button              onclick="send('success',2)">Gửi webhook 2 lần (thử chống trùng)</button>
               <div id="log"></div>
             <script>
-              const txn = {{Json(txn)}}, ret = {{Json(returnUrl)}};
+              const txn = {{Json(txn)}}, ret = {{Json(safeReturnUrl)}}, amount = {{Json(amount)}};
               async function send(status, times){
                 const log = document.getElementById('log'); log.textContent = '';
                 for (let i = 1; i <= times; i++){
-                  const r = await fetch(`/mock-gateway/notify?txn=${encodeURIComponent(txn)}&status=${status}`,
+                  const r = await fetch(`/mock-gateway/notify?txn=${encodeURIComponent(txn)}&status=${status}&amount=${encodeURIComponent(amount)}`,
                                         {method:'POST'});
                   const body = await r.json().catch(() => ({}));
                   log.textContent += `Lần ${i}: HTTP ${r.status} — ${body.message ?? JSON.stringify(body)}\n`;
                 }
-                if (status === 'success' && ret) {
+                // Thất bại cũng đưa khách quay lại, kèm dấu hiệu để trang kết quả
+                // cho thanh toán lại — nếu không khách kẹt ở trang cổng trong khi ghế vẫn đang giữ.
+                if (ret) {
+                  const target = status === 'success'
+                    ? ret : ret + (ret.includes('?') ? '&' : '?') + 'payment=failed';
                   log.textContent += 'Đang quay lại website…';
-                  setTimeout(() => location.href = ret, times > 1 ? 1600 : 700);
+                  setTimeout(() => location.href = target, times > 1 ? 1600 : 700);
                 }
               }
             </script></div></body></html>
@@ -187,12 +204,18 @@ public class MockGatewayController(
     /// <summary>Đóng vai cổng thanh toán gọi webhook về hệ thống, có ký đầy đủ.</summary>
     [HttpPost("notify")]
     public async Task<IActionResult> Notify(
-        [FromQuery] string txn, [FromQuery] string status, CancellationToken ct)
+        [FromQuery] string txn, [FromQuery] string status, [FromQuery] string? amount, CancellationToken ct)
     {
+        // Cổng thật luôn báo số tiền đã thu. Gọi thẳng không kèm số tiền (script kiểm thử)
+        // thì báo đúng số tiền của giao dịch, như một cổng thu đủ tiền.
+        amount ??= (await payments.FindAmountByTxnAsync(gateway.Provider, txn, ct))?
+            .ToString("0", CultureInfo.InvariantCulture) ?? "0";
+
         var payload = new Dictionary<string, string>
         {
             ["txn"] = txn,
             ["status"] = status,
+            ["amount"] = amount,
             ["at"] = DateTime.UtcNow.ToString("O")
         };
         payload["signature"] = gateway.ComputeSignature(payload);
@@ -201,6 +224,15 @@ public class MockGatewayController(
         return result.Succeeded
             ? Ok(new { message = result.Value })
             : StatusCode(400, new { code = result.ErrorCode, message = result.Error });
+    }
+
+    private bool IsSameOrigin(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+        if (url.StartsWith('/') && !url.StartsWith("//") && !url.StartsWith("/\\")) return true;
+        return Uri.TryCreate(url, UriKind.Absolute, out var u)
+               && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)
+               && string.Equals(u.Authority, Request.Host.Value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Json(string value) =>

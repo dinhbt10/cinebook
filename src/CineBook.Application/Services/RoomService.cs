@@ -15,8 +15,13 @@ public class RoomService(IAppDbContext db)
 {
     public const int MaxRows = 26;
 
-    public async Task<Result<Guid>> CreateAsync(CreateRoomRequest req, CancellationToken ct = default)
+    public async Task<Result<Guid>> CreateAsync(
+        CreateRoomRequest req, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
+        // BR-19: quản lý rạp chỉ thêm phòng cho rạp mình.
+        if (scopeCinemaId is { } scope && req.CinemaId != scope)
+            return Result<Guid>.Fail(ShowtimeService.ForbiddenCinema, "Bạn chỉ thêm được phòng cho rạp mình phụ trách.");
+
         if (req.RowCount is < 1 or > MaxRows)
             return Result<Guid>.Fail("BAD_ROWS", $"Số hàng ghế phải từ 1 đến {MaxRows}.");
         if (req.SeatsPerRow is < 1 or > 40)
@@ -69,10 +74,13 @@ public class RoomService(IAppDbContext db)
     }
 
     /// <summary>BR-06: đánh dấu ghế hỏng, ghế này sẽ không được đưa vào suất chiếu mới.</summary>
-    public async Task<Result> SetSeatMaintenanceAsync(Guid seatId, bool broken, CancellationToken ct = default)
+    public async Task<Result> SetSeatMaintenanceAsync(
+        Guid seatId, bool broken, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
-        var seat = await db.Seats.FirstOrDefaultAsync(s => s.Id == seatId, ct);
+        var seat = await db.Seats.Include(s => s.Room).FirstOrDefaultAsync(s => s.Id == seatId, ct);
         if (seat is null) return Result.Fail("NOT_FOUND", "Không tìm thấy ghế.");
+        if (scopeCinemaId is { } scope && seat.Room.CinemaId != scope)
+            return Result.Fail(ShowtimeService.ForbiddenCinema, "Ghế này thuộc rạp khác.");
         seat.IsActive = !broken;
         await db.SaveChangesAsync(ct);
         return Result.Ok();
@@ -82,6 +90,7 @@ public class RoomService(IAppDbContext db)
         await db.Rooms.AsNoTracking()
             .Where(r => r.CinemaId == cinemaId && r.IsActive)
             .OrderBy(r => r.Name)
-            .Select(r => new RoomDto(r.Id, r.Name, r.RoomType.ToString(), r.Seats.Count))
+            // Ghế bảo trì không được đưa vào suất chiếu mới nên không tính vào sức chứa.
+            .Select(r => new RoomDto(r.Id, r.Name, r.RoomType.ToString(), r.Seats.Count(x => x.IsActive)))
             .ToListAsync(ct);
 }

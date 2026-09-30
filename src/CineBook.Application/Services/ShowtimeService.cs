@@ -11,6 +11,7 @@ namespace CineBook.Application.Services;
 public class ShowtimeService(
     IAppDbContext db,
     PricingService pricing,
+    PaymentService payments,
     IDateTimeProvider clock,
     IOptions<BookingOptions> options)
 {
@@ -22,7 +23,8 @@ public class ShowtimeService(
     /// với giá chốt luôn: giá quản trị nhập cho từng loại ghế, hoặc tính theo BR-18
     /// nếu không nhập.
     /// </summary>
-    public async Task<Result<Guid>> CreateAsync(CreateShowtimeRequest req, CancellationToken ct = default)
+    public async Task<Result<Guid>> CreateAsync(
+        CreateShowtimeRequest req, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
         var movie = await db.Movies.FirstOrDefaultAsync(m => m.Id == req.MovieId, ct);
         if (movie is null) return Result<Guid>.Fail("MOVIE_NOT_FOUND", "Không tìm thấy phim.");
@@ -32,6 +34,10 @@ public class ShowtimeService(
         var room = await db.Rooms.Include(r => r.Cinema)
             .FirstOrDefaultAsync(r => r.Id == req.RoomId, ct);
         if (room is null) return Result<Guid>.Fail("ROOM_NOT_FOUND", "Không tìm thấy phòng chiếu.");
+
+        // BR-19: quản lý rạp chỉ xếp lịch cho phòng của rạp mình.
+        if (scopeCinemaId is { } scope && room.CinemaId != scope)
+            return Result<Guid>.Fail(ForbiddenCinema, ForbiddenCinemaMessage);
 
         if (req.StartsAtUtc <= clock.UtcNow)
             return Result<Guid>.Fail("START_IN_PAST", "Giờ chiếu phải ở tương lai.");
@@ -127,10 +133,16 @@ public class ShowtimeService(
         _ => prices.Standard,
     };
 
-    public async Task<Result> SetOnSaleAsync(Guid showtimeId, bool onSale, CancellationToken ct = default)
+    public const string ForbiddenCinema = "FORBIDDEN_CINEMA";
+    private const string ForbiddenCinemaMessage = "Bạn chỉ quản lý được suất chiếu của rạp mình phụ trách.";
+
+    public async Task<Result> SetOnSaleAsync(
+        Guid showtimeId, bool onSale, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
-        var st = await db.Showtimes.FirstOrDefaultAsync(s => s.Id == showtimeId, ct);
+        var st = await db.Showtimes.Include(s => s.Room).FirstOrDefaultAsync(s => s.Id == showtimeId, ct);
         if (st is null) return Result.Fail("NOT_FOUND", "Không tìm thấy suất chiếu.");
+        if (scopeCinemaId is { } scope && st.Room.CinemaId != scope)
+            return Result.Fail(ForbiddenCinema, ForbiddenCinemaMessage);
         if (st.IsCancelled) return Result.Fail("CANCELLED", "Suất chiếu đã bị hủy.");
         st.IsOnSale = onSale;
         st.UpdatedAtUtc = clock.UtcNow;
@@ -171,41 +183,104 @@ public class ShowtimeService(
                 s.Seats.Count(x => x.Status == SeatStatus.Available
                                    || (x.Status == SeatStatus.Held && x.HoldExpiresAtUtc < nowUtc)),
                 s.Seats.Count,
-                s.IsOnSale))
+                s.IsOnSale,
+                s.IsCancelled))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Lịch chiếu cho trang quản trị: khác <see cref="SearchAsync"/> ở chỗ gồm cả suất chưa
+    /// mở bán, đã qua giờ và đã hủy — quản trị phải thấy suất vừa bấm "ngừng bán" để mở lại.
+    /// </summary>
+    public async Task<IReadOnlyList<ShowtimeListItemDto>> SearchForAdminAsync(
+        Guid? cinemaId, DateOnly localDate, Guid? scopeCinemaId = null, CancellationToken ct = default)
+    {
+        var fromUtc = PricingService.LocalDateStartUtc(localDate);
+        var toUtc = fromUtc.AddDays(1);
+        var nowUtc = clock.UtcNow;
+
+        var q = db.Showtimes.AsNoTracking()
+            .Where(s => s.StartsAtUtc >= fromUtc && s.StartsAtUtc < toUtc);
+
+        // BR-19: quản lý rạp chỉ thấy rạp mình, bỏ qua rạp chọn trên giao diện.
+        var cid = scopeCinemaId ?? cinemaId;
+        if (cid is { } c) q = q.Where(s => s.Room.CinemaId == c);
+
+        return await q.OrderBy(s => s.StartsAtUtc)
+            .Select(s => new ShowtimeListItemDto(
+                s.Id, s.MovieId, s.Movie.Title, s.RoomId, s.Room.Name,
+                s.Room.Cinema.Name, s.Room.RoomType.ToString(),
+                s.StartsAtUtc, s.EndsAtUtc, s.SubtitleMode.ToString(),
+                s.Seats.Min(x => (decimal?)x.Price) ?? 0m,
+                s.Seats.Count(x => x.Status == SeatStatus.Available
+                                   || (x.Status == SeatStatus.Held && x.HoldExpiresAtUtc < nowUtc)),
+                s.Seats.Count,
+                s.IsOnSale,
+                s.IsCancelled))
             .ToListAsync(ct);
     }
 
     /// <summary>BR-15: hủy suất chiếu thì mọi vé đã bán được hoàn 100%.</summary>
-    public async Task<Result<int>> CancelAsync(Guid showtimeId, string reason, CancellationToken ct = default)
+    public async Task<Result<int>> CancelAsync(
+        Guid showtimeId, string reason, Guid? scopeCinemaId = null, Guid? actorUserId = null,
+        CancellationToken ct = default)
     {
-        var st = await db.Showtimes.FirstOrDefaultAsync(s => s.Id == showtimeId, ct);
+        var st = await db.Showtimes.Include(s => s.Room).FirstOrDefaultAsync(s => s.Id == showtimeId, ct);
         if (st is null) return Result<int>.Fail("NOT_FOUND", "Không tìm thấy suất chiếu.");
+        if (scopeCinemaId is { } scope && st.Room.CinemaId != scope)
+            return Result<int>.Fail(ForbiddenCinema, ForbiddenCinemaMessage);
+        if (st.IsCancelled) return Result<int>.Fail("CANCELLED", "Suất chiếu đã bị hủy trước đó.");
 
+        var now = clock.UtcNow;
         st.IsCancelled = true;
         st.IsOnSale = false;
-        st.UpdatedAtUtc = clock.UtcNow;
+        st.UpdatedAtUtc = now;
 
         var affected = await db.Bookings
-            .Where(b => b.ShowtimeId == showtimeId && b.Status == BookingStatus.Paid)
+            .Include(b => b.Tickets)
+            .Where(b => b.ShowtimeId == showtimeId
+                        && (b.Status == BookingStatus.Paid || b.Status == BookingStatus.Pending))
             .ToListAsync(ct);
 
+        var paidCount = 0;
+        var refundFailed = 0;
         foreach (var b in affected)
         {
-            b.Status = BookingStatus.Cancelled;
-            b.CancelledAtUtc = clock.UtcNow;
+            b.CancelledAtUtc = now;
             b.CancelReason = $"Rạp hủy suất chiếu: {reason}";
+            foreach (var t in b.Tickets) t.Status = TicketStatus.Cancelled;
+
+            if (b.Status == BookingStatus.Pending)
+            {
+                // Đơn chưa trả tiền: chỉ đóng lại. Nếu tiền về sau đó, luồng webhook tự hoàn.
+                b.Status = BookingStatus.Cancelled;
+                continue;
+            }
+
+            // BR-15: vé đã bán được hoàn 100%, không áp chính sách giờ hủy của khách.
+            paidCount++;
+            b.Status = BookingStatus.Refunded;
+            var refund = await payments.RefundAsync(b.Id, 1.0m, b.CancelReason, actorUserId, ct);
+            if (!refund.Succeeded)
+            {
+                refundFailed++;
+                b.Status = BookingStatus.Cancelled;
+                b.CancelReason += " — chưa hoàn được tiền, cần xử lý thủ công.";
+            }
         }
 
         db.AuditLogs.Add(new AuditLog
         {
+            ActorUserId = actorUserId,
             Action = "SHOWTIME_CANCELLED",
             EntityType = nameof(Showtime),
             EntityId = showtimeId.ToString(),
-            Note = $"{reason} — ảnh hưởng {affected.Count} đơn đã thanh toán"
+            Note = $"{reason} — hoàn tiền {paidCount - refundFailed}/{paidCount} đơn đã thanh toán"
+                   + (refundFailed > 0 ? $", {refundFailed} đơn cần hoàn thủ công" : "")
         });
 
         await db.SaveChangesAsync(ct);
-        return Result<int>.Ok(affected.Count);
+        return Result<int>.Ok(paidCount);
     }
 
     private static DateTime ToLocal(DateTime utc) => utc.AddHours(PricingService.VietnamUtcOffsetHours);

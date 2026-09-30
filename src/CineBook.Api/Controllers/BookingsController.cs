@@ -25,8 +25,9 @@ public class BookingsController(
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
-        try { return Ok(await bookings.MapAsync(id, ct)); }
-        catch (InvalidOperationException) { return NotFound(new { message = "Không tìm thấy đơn hàng." }); }
+        // Chỉ chủ đơn được xem: đơn của người khác trả 404 như đơn không tồn tại.
+        var booking = await bookings.GetForUserAsync(id, User.UserId(), ct);
+        return booking is null ? NotFound(new { message = "Không tìm thấy đơn hàng." }) : Ok(booking);
     }
 
     [HttpGet("mine")]

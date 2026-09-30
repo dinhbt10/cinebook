@@ -11,7 +11,7 @@ namespace CineBook.Api.Controllers;
 public class ReportsController(ReportService reports) : ControllerBase
 {
     /// <summary>BR-19: quản lý rạp chỉ thấy số liệu rạp mình; admin thấy toàn hệ thống.</summary>
-    private Guid? Scope() => User.IsInRole(Roles.Admin) ? null : User.CinemaId();
+    private Guid? Scope() => User.ManagedCinemaId();
 
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard(CancellationToken ct) =>

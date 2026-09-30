@@ -311,7 +311,8 @@ lớp `.on-dark`, bên trong đặt lại đúng bộ biến màu tối.
 - **Mọi phần tử bấm được đều có con trỏ bàn tay.** Tailwind 4 bỏ `cursor: pointer` mặc
   định của `<button>`, nên `index.css` khai báo lại cho `button`, `[role=button]`,
   `select`, `summary`, `label[for]`, và đổi thành dấu cấm khi bị vô hiệu hoá.
-- **Đồng hồ đếm ngược** 8 phút chuyển màu đỏ khi còn dưới một phút, hết giờ tự đưa khách về bước chọn ghế.
+- **Đồng hồ đếm ngược** 8 phút chuyển màu đỏ khi còn dưới một phút, hết giờ tự đưa khách về trang chủ kèm thông báo.
+  Còn trong 8 phút mà khách F5, bấm back hay thanh toán thất bại thì vào lại trang đặt vé sẽ nối tiếp đúng đơn đang giữ.
 - Khi hai người giành cùng một ghế, người bấm sau nhận thông báo rõ ràng và sơ đồ tự làm mới.
 - **Cổng thanh toán giả lập** có nút "Gửi webhook 2 lần" để chứng minh chống xử lý trùng ngay trên màn hình.
 - **Bìa phim sinh tự động**: phim chưa có ảnh thì giao diện tự dựng bìa bằng gradient và

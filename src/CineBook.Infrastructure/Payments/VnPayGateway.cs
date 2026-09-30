@@ -126,6 +126,12 @@ public class VnPayGateway(
 
         var baseUrl = (_opt.PublicBaseUrl ?? request.BaseUrl ?? string.Empty).TrimEnd('/');
 
+        // Link không được sống lâu hơn thời gian giữ ghế: trả tiền sau khi ghế đã nhả thì
+        // không còn vé để giao, chỉ còn cách hoàn tiền.
+        var expireAt = createdAt.AddMinutes(_opt.ExpireMinutes);
+        var holdEndsVn = booking.HoldExpiresAtUtc.AddHours(7);
+        if (holdEndsVn < expireAt) expireAt = holdEndsVn;
+
         var data = new Dictionary<string, string>
         {
             ["vnp_Version"] = "2.1.0",
@@ -141,8 +147,7 @@ public class VnPayGateway(
             ["vnp_ReturnUrl"] = $"{baseUrl}/api/payments/vnpay-return",
             ["vnp_IpAddr"] = request.ClientIpAddress ?? "127.0.0.1",
             ["vnp_CreateDate"] = createdAt.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture),
-            ["vnp_ExpireDate"] = createdAt.AddMinutes(_opt.ExpireMinutes)
-                                          .ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture),
+            ["vnp_ExpireDate"] = expireAt.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture),
         };
 
         // vnp_BankCode quyết định khách thấy màn hình nào: VNPAYQR ra thẳng mã QR,

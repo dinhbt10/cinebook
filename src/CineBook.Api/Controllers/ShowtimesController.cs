@@ -31,7 +31,17 @@ public class ShowtimesController(ShowtimeService showtimes, BookingService booki
     [HttpPost]
     [Authorize(Roles = Roles.AdminOrManager)]
     public async Task<IActionResult> Create(CreateShowtimeRequest req, CancellationToken ct) =>
-        (await showtimes.CreateAsync(req, ct)).ToActionResult();
+        (await showtimes.CreateAsync(req, User.ManagedCinemaId(), ct)).ToActionResult();
+
+    /// <summary>
+    /// Lịch chiếu cho trang quản trị: gồm cả suất chưa mở bán, đã qua giờ và đã hủy.
+    /// Quản lý rạp chỉ thấy rạp mình (BR-19).
+    /// </summary>
+    [HttpGet("admin")]
+    [Authorize(Roles = Roles.AdminOrManager)]
+    public async Task<IActionResult> AdminList(
+        [FromQuery] DateOnly date, [FromQuery] Guid? cinemaId, CancellationToken ct) =>
+        Ok(await showtimes.SearchForAdminAsync(cinemaId, date, User.ManagedCinemaId(), ct));
 
     /// <summary>Giá gợi ý cho từng loại ghế theo bảng giá, để form tạo suất điền sẵn.</summary>
     [HttpGet("price-preview")]
@@ -44,13 +54,13 @@ public class ShowtimesController(ShowtimeService showtimes, BookingService booki
     [HttpPatch("{id:guid}/on-sale")]
     [Authorize(Roles = Roles.AdminOrManager)]
     public async Task<IActionResult> SetOnSale(Guid id, [FromQuery] bool value, CancellationToken ct) =>
-        (await showtimes.SetOnSaleAsync(id, value, ct)).ToActionResult();
+        (await showtimes.SetOnSaleAsync(id, value, User.ManagedCinemaId(), ct)).ToActionResult();
 
     /// <summary>BR-15: hủy suất chiếu, mọi vé đã bán được hoàn 100%.</summary>
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Roles = Roles.AdminOrManager)]
     public async Task<IActionResult> Cancel(Guid id, [FromBody] CancelShowtimeRequest req, CancellationToken ct) =>
-        (await showtimes.CancelAsync(id, req.Reason, ct)).ToActionResult();
+        (await showtimes.CancelAsync(id, req.Reason, User.ManagedCinemaId(), User.UserId(), ct)).ToActionResult();
 }
 
 public record CancelShowtimeRequest(string Reason);

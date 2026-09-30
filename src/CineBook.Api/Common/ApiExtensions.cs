@@ -15,6 +15,14 @@ public static class ApiExtensions
     public static Guid? CinemaId(this ClaimsPrincipal user) =>
         Guid.TryParse(user.FindFirstValue("cinema_id"), out var id) ? id : null;
 
+    /// <summary>
+    /// BR-19: rạp mà người dùng được phép thao tác. Admin trả null (mọi rạp); quản lý rạp và
+    /// nhân viên trả rạp của mình. Tài khoản thiếu mã rạp trả Guid.Empty — không khớp rạp nào,
+    /// để lỗi cấu hình tài khoản thành "không có quyền" thay vì thành "toàn quyền".
+    /// </summary>
+    public static Guid? ManagedCinemaId(this ClaimsPrincipal user) =>
+        user.IsInRole(Roles.Admin) ? null : user.CinemaId() ?? Guid.Empty;
+
     public static IActionResult ToActionResult(this Result result) =>
         result.Succeeded
             ? new OkResult()
@@ -33,7 +41,7 @@ public static class ApiExtensions
                 or "CINEMA_NOT_FOUND" or "TXN_NOT_FOUND" => StatusCodes.Status404NotFound,
             "SEATS_TAKEN" or "SHOWTIME_OVERLAP" or "PROMO_CODE_TAKEN" => StatusCodes.Status409Conflict,
             "INVALID_CREDENTIALS" or "BAD_SIGNATURE" => StatusCodes.Status401Unauthorized,
-            "ACCOUNT_LOCKED" => StatusCodes.Status403Forbidden,
+            "ACCOUNT_LOCKED" or "FORBIDDEN_CINEMA" => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status400BadRequest
         };
 

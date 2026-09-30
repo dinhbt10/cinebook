@@ -40,9 +40,11 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         if (promo.UsageLimit is { } limit && promo.UsedCount >= limit)
             return new(false, "PROMO_USED_UP", "Mã giảm giá đã hết lượt sử dụng.", 0m);
 
+        // Đơn chờ đã quá hạn giữ ghế không còn chiếm lượt dùng, kể cả khi job dọn đơn chưa chạy.
         var usedByUser = await db.Bookings.CountAsync(b =>
             b.PromotionId == promo.Id && b.UserId == userId &&
-            (b.Status == BookingStatus.Paid || b.Status == BookingStatus.Pending), ct);
+            (b.Status == BookingStatus.Paid ||
+             (b.Status == BookingStatus.Pending && b.HoldExpiresAtUtc > now)), ct);
 
         if (usedByUser >= promo.PerUserLimit)
             return new(false, "PROMO_PER_USER", "Bạn đã dùng mã này rồi.", 0m);

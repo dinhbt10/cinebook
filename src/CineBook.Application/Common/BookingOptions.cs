@@ -21,7 +21,7 @@ public class BookingOptions
     public int RoomCleanupMinutes { get; set; } = 15;
 
     /// <summary>BR-14: hủy vé trước giờ chiếu bao nhiêu giờ thì được hoàn tiền.</summary>
-    public int RefundFullBeforeHours = 24;
+    public int RefundFullBeforeHours { get; set; } = 24;
     public int RefundPartialBeforeHours { get; set; } = 2;
     public decimal RefundPartialRate { get; set; } = 0.8m;
 

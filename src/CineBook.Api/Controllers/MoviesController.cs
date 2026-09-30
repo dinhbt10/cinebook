@@ -16,11 +16,15 @@ public class MoviesController(IAppDbContext db) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Search(
         [FromQuery] string? q, [FromQuery] MovieStatus? status, [FromQuery] Guid? genreId,
-        CancellationToken ct = default)
+        [FromQuery] bool all = false, CancellationToken ct = default)
     {
         var query = db.Movies.AsNoTracking()
             .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
-            .Where(m => m.Status != MovieStatus.Draft);
+            .AsQueryable();
+
+        // Phim nháp chỉ trang quản trị thấy — nếu không, lưu phim ở trạng thái nháp là mất dấu.
+        var canSeeDrafts = all && (User.IsInRole(Roles.Admin) || User.IsInRole(Roles.Manager));
+        if (!canSeeDrafts) query = query.Where(m => m.Status != MovieStatus.Draft);
 
         if (status is { } s) query = query.Where(m => m.Status == s);
         if (genreId is { } gid) query = query.Where(m => m.MovieGenres.Any(mg => mg.GenreId == gid));
@@ -48,7 +52,8 @@ public class MoviesController(IAppDbContext db) : ControllerBase
 
         return Ok(new MovieDetailDto(m.Id, m.Title, m.OriginalTitle, m.Description, m.DurationMinutes,
             m.AgeRating.ToString(), m.Director, m.Cast, m.Language, m.PosterUrl, m.BackdropUrl,
-            m.TrailerUrl, m.ReleaseDate, m.Status.ToString(), m.MovieGenres.Select(g => g.Genre.Name)));
+            m.TrailerUrl, m.ReleaseDate, m.Status.ToString(), m.MovieGenres.Select(g => g.Genre.Name),
+            m.Country, m.EndDate, m.MovieGenres.Select(g => g.GenreId)));
     }
 
     [HttpGet("/api/genres")]
@@ -80,8 +85,12 @@ public class MoviesController(IAppDbContext db) : ControllerBase
 
         Apply(movie, req);
         movie.UpdatedAtUtc = DateTime.UtcNow;
-        db.MovieGenres.RemoveRange(movie.MovieGenres);
-        await SetGenresAsync(movie, req.GenreIds, ct);
+        // Không gửi GenreIds nghĩa là không đổi thể loại; gửi mảng rỗng mới là xoá hết.
+        if (req.GenreIds is not null)
+        {
+            db.MovieGenres.RemoveRange(movie.MovieGenres);
+            await SetGenresAsync(movie, req.GenreIds, ct);
+        }
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
