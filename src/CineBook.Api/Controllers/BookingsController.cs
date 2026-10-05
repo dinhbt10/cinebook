@@ -11,7 +11,7 @@ namespace CineBook.Api.Controllers;
 [Authorize]
 public class BookingsController(
     BookingService bookings,
-    RefundService refunds,
+    // RefundService refunds,   // bật lại cùng endpoint /refund bên dưới
     TicketService tickets) : ControllerBase
 {
     /// <summary>
@@ -39,10 +39,13 @@ public class BookingsController(
     public async Task<IActionResult> CancelPending(Guid id, CancellationToken ct) =>
         (await bookings.CancelPendingAsync(id, User.UserId(), ct)).ToActionResult();
 
-    /// <summary>BR-14: hủy vé đã thanh toán và hoàn tiền theo chính sách.</summary>
-    [HttpPost("{id:guid}/refund")]
-    public async Task<IActionResult> Refund(Guid id, CancellationToken ct) =>
-        (await refunds.CancelPaidBookingAsync(id, User.UserId(), ct)).ToActionResult();
+    // BR-14: hủy vé đã thanh toán và hoàn tiền theo chính sách.
+    // Tạm tắt: vé đã thanh toán thì khách không tự hủy được nữa. Bỏ comment để bật lại
+    // luồng hủy vé + hoàn tiền theo BR-14 (RefundService vẫn giữ nguyên).
+    // Rạp hủy suất chiếu vẫn hoàn 100% cho khách — luồng đó nằm ở ShowtimeService.CancelAsync.
+    // [HttpPost("{id:guid}/refund")]
+    // public async Task<IActionResult> Refund(Guid id, CancellationToken ct) =>
+    //     (await refunds.CancelPaidBookingAsync(id, User.UserId(), ct)).ToActionResult();
 
     [HttpGet("{id:guid}/tickets")]
     public async Task<IActionResult> Tickets(Guid id, CancellationToken ct) =>

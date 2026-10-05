@@ -241,7 +241,7 @@ hoặc `npm run build` để đóng gói vào `wwwroot` và chỉ cần chạy A
 | `/phim/:id` | Chi tiết phim và lịch chiếu 7 ngày, nhóm theo rạp |
 | `/dat-ve/:showtimeId` | **Luồng đặt vé ba bước**: chọn ghế → bắp nước & mã giảm giá → thanh toán |
 | `/dat-ve/ket-qua/:id` | Kết quả thanh toán, tự cập nhật khi webhook về |
-| `/ve-cua-toi` | Vé đã mua, mã QR, **tải vé về máy dạng ảnh**, hủy vé |
+| `/ve-cua-toi` | Vé đã mua, mã QR, **tải vé về máy dạng ảnh**, hủy đơn đang chờ thanh toán |
 | `/rap` | Hệ thống rạp |
 | `/uu-dai` | **Kho voucher**: lưu voucher vào kho, thêm bằng mã, chép mã |
 
@@ -313,6 +313,9 @@ lớp `.on-dark`, bên trong đặt lại đúng bộ biến màu tối.
   `select`, `summary`, `label[for]`, và đổi thành dấu cấm khi bị vô hiệu hoá.
 - **Đồng hồ đếm ngược** 8 phút chuyển màu đỏ khi còn dưới một phút, hết giờ tự đưa khách về trang chủ kèm thông báo.
   Còn trong 8 phút mà khách F5, bấm back hay thanh toán thất bại thì vào lại trang đặt vé sẽ nối tiếp đúng đơn đang giữ.
+- **Hủy đặt vé ở mọi bước**: nút "Hủy đặt vé" có ở cả ba bước đặt vé, ở trang kết quả khi thanh toán thất bại và ở đơn đang chờ trong "Vé của tôi".
+  Đơn đang giữ ghế bị hủy thì ghế trả lại ngay, không chờ hết 8 phút. Đơn đã thanh toán thì khách không hủy được nữa (endpoint `/api/bookings/{id}/refund` đang tắt);
+  chỉ khi rạp hủy suất chiếu thì khách mới được hoàn 100%.
 - Khi hai người giành cùng một ghế, người bấm sau nhận thông báo rõ ràng và sơ đồ tự làm mới.
 - **Cổng thanh toán giả lập** có nút "Gửi webhook 2 lần" để chứng minh chống xử lý trùng ngay trên màn hình.
 - **Bìa phim sinh tự động**: phim chưa có ảnh thì giao diện tự dựng bìa bằng gradient và

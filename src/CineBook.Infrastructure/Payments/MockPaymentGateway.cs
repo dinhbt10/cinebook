@@ -30,7 +30,11 @@ public class MockPaymentGateway(IOptions<MockGatewayOptions> options) : IPayment
 
     public string Provider => "Mock";
     public string DisplayName => "Cổng giả lập (demo)";
-    public bool IsConfigured => true;
+    // Tạm ẩn cổng giả lập khỏi bước thanh toán vì đã có VNPay. Bỏ comment dòng dưới để bật lại.
+    // Chỉ chặn tạo giao dịch MỚI: cổng vẫn được đăng ký nên đơn cũ trả bằng cổng giả lập
+    // vẫn hoàn tiền được (hủy vé, hủy suất chiếu) và webhook của giao dịch cũ vẫn xử lý được.
+    // public bool IsConfigured => true;
+    public bool IsConfigured => false;
 
     public IReadOnlyList<PaymentMethod> Methods { get; } =
         [new PaymentMethod("", "Mô phỏng")];

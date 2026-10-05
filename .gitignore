@@ -16,3 +16,5 @@ web/dist/
 
 # Giao diện là repo riêng: git@github.com:Sotatek-DinhBui2/CineBook.git
 /web/
+
+/docs
