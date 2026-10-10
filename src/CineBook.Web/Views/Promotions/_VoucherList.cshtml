@@ -1,0 +1,49 @@
+@model VoucherListViewModel
+@{
+    var saved = Model.Vouchers.Where(v => v.Saved).ToList();
+    var others = Model.Vouchers.Where(v => !v.Saved).ToList();
+}
+@if (Model.Vouchers.Count == 0)
+{
+    <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ink-700 px-6 py-14 text-center">
+        <div class="text-ink-500">@Html.Icon("tag", 38)</div>
+        <div>
+            <p class="font-display text-lg font-bold">Hiện chưa có ưu đãi nào</p>
+            <p class="mt-1 max-w-sm text-sm text-faint">Ghé lại sau, rạp thường mở mã mới vào đầu tháng.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="flex flex-col gap-8">
+        @if (saved.Count > 0)
+        {
+            <section>
+                <h2 class="mb-3 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-faint">
+                    @Html.Icon("ticket", 14, "text-brand-500") Kho voucher của bạn (<!---->@saved.Count<!---->)
+                </h2>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    @foreach (var v in saved)
+                    {
+                        <partial name="_VoucherCard" model="v" />
+                    }
+                </div>
+            </section>
+        }
+
+        @if (others.Count > 0)
+        {
+            <section>
+                <h2 class="mb-3 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-faint">
+                    @Html.Icon("tag", 14) <!---->@(saved.Count > 0 ? "Ưu đãi khác" : "Ưu đãi đang chạy")
+                </h2>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    @foreach (var v in others)
+                    {
+                        <partial name="_VoucherCard" model="v" />
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}

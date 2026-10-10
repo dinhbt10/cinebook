@@ -1,0 +1,10 @@
+@{
+    var dark = Context.Request.Cookies["theme"] != "light";
+}
+<button type="button" data-theme-toggle
+        title="@(dark ? "Chuyển sang nền sáng" : "Chuyển sang nền tối")"
+        aria-label="@(dark ? "Chuyển sang nền sáng" : "Chuyển sang nền tối")"
+        class="relative flex h-9 w-9 items-center justify-center rounded-lg border border-ink-700 text-muted transition-colors hover:border-ink-600 hover:text-brand-500">
+    @Html.Icon("sun", 15, "absolute transition-all duration-300 " + (dark ? "scale-0 -rotate-90 opacity-0" : "scale-100 rotate-0 opacity-100"))
+    @Html.Icon("moon", 15, "absolute transition-all duration-300 " + (dark ? "scale-100 rotate-0 opacity-100" : "scale-0 rotate-90 opacity-0"))
+</button>

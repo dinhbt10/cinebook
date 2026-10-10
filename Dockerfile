@@ -8,11 +8,11 @@ COPY CineBook.sln .
 COPY src/CineBook.Domain/CineBook.Domain.csproj                 src/CineBook.Domain/
 COPY src/CineBook.Application/CineBook.Application.csproj       src/CineBook.Application/
 COPY src/CineBook.Infrastructure/CineBook.Infrastructure.csproj src/CineBook.Infrastructure/
-COPY src/CineBook.Api/CineBook.Api.csproj                       src/CineBook.Api/
-RUN dotnet restore src/CineBook.Api/CineBook.Api.csproj
+COPY src/CineBook.Web/CineBook.Web.csproj                       src/CineBook.Web/
+RUN dotnet restore src/CineBook.Web/CineBook.Web.csproj
 
 COPY src/ src/
-RUN dotnet publish src/CineBook.Api/CineBook.Api.csproj \
+RUN dotnet publish src/CineBook.Web/CineBook.Web.csproj \
     -c Release -o /app --no-restore /p:UseAppHost=false
 
 # ---------- tầng chạy ----------
@@ -26,4 +26,4 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "CineBook.Api.dll"]
+ENTRYPOINT ["dotnet", "CineBook.Web.dll"]

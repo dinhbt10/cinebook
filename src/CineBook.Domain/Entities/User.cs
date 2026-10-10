@@ -14,7 +14,6 @@ public class User : BaseEntity
     public bool EmailVerified { get; set; }
     public bool IsActive { get; set; } = true;
 
-    /// <summary>Chỉ có giá trị với vai trò Staff và CinemaManager (BR-19).</summary>
     public Guid? CinemaId { get; set; }
     public Cinema? Cinema { get; set; }
 

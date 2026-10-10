@@ -27,18 +27,15 @@ public class Room : BaseEntity
     public ICollection<Showtime> Showtimes { get; set; } = new List<Showtime>();
 }
 
-/// <summary>Ghế vật lý của một phòng chiếu. Không mang trạng thái bán — xem ShowtimeSeat.</summary>
 public class Seat : BaseEntity
 {
     public Guid RoomId { get; set; }
     public Room Room { get; set; } = null!;
 
-    /// <summary>Hàng ghế: A, B, C…</summary>
     public string RowLabel { get; set; } = null!;
     public int Number { get; set; }
     public SeatType SeatType { get; set; } = SeatType.Standard;
 
-    /// <summary>BR-06: ghế bảo trì không bao giờ được bán.</summary>
     public bool IsActive { get; set; } = true;
 
     public string Label => $"{RowLabel}{Number}";

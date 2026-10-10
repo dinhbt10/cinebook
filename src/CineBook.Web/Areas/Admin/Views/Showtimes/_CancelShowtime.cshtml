@@ -1,0 +1,31 @@
+@model CancelShowtimeViewModel
+<div id="cancel-showtime-dialog" data-modal style="background: var(--color-scrim); display: none"
+     class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+    <div class="surface my-8 w-full animate-rise p-6 max-w-lg">
+        <h3 class="mb-5 text-lg font-bold">Hủy suất chiếu</h3>
+        <form asp-action="Cancel" method="post" data-loading role="alertdialog" aria-modal="true" aria-label="Hủy suất chiếu"
+              class="flex flex-col gap-5">
+            <div class="flex items-start gap-3.5">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-velvet-950 text-velvet-400">
+                    @Html.Icon("alert-triangle", 18)
+                </span>
+                <div class="min-w-0 flex-1 text-sm leading-relaxed text-muted">
+                    <p data-cancel-title></p>
+                    <p data-cancel-sold></p>
+                </div>
+            </div>
+            <label class="flex flex-col gap-1.5">
+                <span class="@Ui.Label">Lý do hủy (khách sẽ thấy)</span>
+                <textarea asp-for="Reason" autofocus class="@Ui.Textarea()"></textarea>
+                <span asp-validation-for="Reason" class="@Ui.FieldError empty:hidden"></span>
+            </label>
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="FilterDate" value="@(Model.FilterDate.HasValue ? Fmt.Iso(Model.FilterDate.Value) : "")" />
+            <input type="hidden" asp-for="FilterCinemaId" />
+            <div class="flex flex-wrap justify-end gap-2.5">
+                <button type="button" data-modal-close class="@Ui.Button("secondary")">Quay lại</button>
+                <button type="submit" class="@Ui.Button("danger")">Hủy suất chiếu</button>
+            </div>
+        </form>
+    </div>
+</div>

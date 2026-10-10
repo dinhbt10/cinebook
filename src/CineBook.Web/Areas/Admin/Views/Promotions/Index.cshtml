@@ -1,0 +1,189 @@
+@model PromotionsIndexViewModel
+@using System.Globalization
+@functions {
+    private static string DiscountText(AdminPromotionDto p)
+    {
+        var value = p.Value.ToString("0.##########", CultureInfo.InvariantCulture);
+        if (p.DiscountType == "FixedAmount")
+            return Fmt.Money(p.Value);
+        return p.MaxDiscount != null && p.MaxDiscount != 0
+            ? value + "%, tối đa " + Fmt.Money(p.MaxDiscount.Value)
+            : value + "%";
+    }
+
+    private static (string Label, string Tone) StatusOf(AdminPromotionDto p, DateTime now)
+    {
+        if (!p.IsActive) return ("Đã tắt", "faint");
+        if (now < p.StartsAtUtc) return ("Chưa bắt đầu", "brand");
+        if (now > p.EndsAtUtc) return ("Hết hạn", "velvet");
+        if (p.UsageLimit != null && p.UsedCount >= p.UsageLimit) return ("Hết lượt", "velvet");
+        return ("Đang chạy", "mint");
+    }
+}
+@{
+    var now = DateTime.UtcNow;
+    var notice = ViewBag.Notice as string;
+    var error = ViewBag.Error as string;
+    var deleteDialog = new ConfirmDialogModel
+    {
+        Id = "promo-delete-dialog",
+        Title = "Xoá voucher",
+        ConfirmLabel = "Xoá",
+        Form = "#promo-delete-form"
+    };
+}
+<div class="p-6 lg:p-8">
+    <div class="mb-6 flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-extrabold">Quản lý khuyến mãi</h1>
+        <button data-promo-form="@Url.Action("Create")" class="@Ui.Button()">@Html.Icon("plus", 16) Tạo voucher</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="mb-4"><div class="@Ui.ErrorNote">@error</div></div>
+    }
+    @if (!string.IsNullOrEmpty(notice))
+    {
+        <div class="mb-4 rounded-lg border border-mint-500/35 bg-mint-950 px-4 py-3 text-sm text-mint-400">
+            @notice
+        </div>
+    }
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="surface p-10 text-center text-sm text-faint">Chưa có voucher nào.</div>
+    }
+    else
+    {
+        <div class="surface overflow-x-auto">
+            <table class="w-full min-w-[860px] text-sm">
+                <thead>
+                    <tr class="border-b border-ink-700 text-left text-[11px] uppercase tracking-wide text-faint">
+                        <th class="px-5 py-3.5 font-semibold">Voucher</th>
+                        <th class="px-5 py-3.5 font-semibold">Mức giảm</th>
+                        <th class="px-5 py-3.5 font-semibold">Đơn tối thiểu</th>
+                        <th class="px-5 py-3.5 font-semibold">Thời gian áp dụng</th>
+                        <th class="px-5 py-3.5 font-semibold">Đã dùng</th>
+                        <th class="px-5 py-3.5 font-semibold">Trạng thái</th>
+                        <th class="px-5 py-3.5"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model.Items)
+                    {
+                        var status = StatusOf(p, now);
+                        <tr class="border-b border-ink-800 last:border-0">
+                            <td class="px-5 py-3">
+                                <p class="font-mono font-bold">@p.Code</p>
+                                <p class="text-[12px] text-faint">@p.Name</p>
+                            </td>
+                            <td class="px-5 py-3 tabular">@DiscountText(p)</td>
+                            <td class="px-5 py-3 tabular">@Fmt.Money(p.MinOrderAmount)</td>
+                            <td class="px-5 py-3 text-[12px] text-muted">
+                                <p>Từ @Fmt.FullDateTime(p.StartsAtUtc)</p>
+                                <p>Đến @Fmt.FullDateTime(p.EndsAtUtc)</p>
+                            </td>
+                            <td class="px-5 py-3 tabular">@p.UsedCount / @(p.UsageLimit?.ToString() ?? "∞")<p class="text-[11px] text-faint">mỗi khách @p.PerUserLimit lần</p></td>
+                            <td class="px-5 py-3"><span class="@Ui.Badge(status.Tone)">@status.Label</span></td>
+                            <td class="px-5 py-3">
+                                <div class="flex justify-end gap-1">
+                                    <button type="submit" form="promo-toggle-form" asp-action="Toggle" asp-route-id="@p.Id" asp-route-value="@(!p.IsActive)"
+                                            title="@(p.IsActive ? "Tắt voucher" : "Bật voucher")"
+                                            class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                                        @Html.Icon("power", 15)
+                                    </button>
+                                    <button data-promo-form="@Url.Action("Edit", new { id = p.Id })" title="Sửa"
+                                            class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                                        @Html.Icon("pencil", 15)
+                                    </button>
+                                    <button data-promo-delete="@Url.Action("Delete", new { id = p.Id })" data-code="@p.Code" data-locked="@(p.Locked ? "true" : "false")"
+                                            title="@(p.Locked ? "Đã có đơn dùng — bấm để tắt" : "Xoá")"
+                                            class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-velvet-400">
+                                        @Html.Icon("trash-2", 15)
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <form id="promo-toggle-form" method="post">@Html.AntiForgeryToken()</form>
+    <form id="promo-delete-form" method="post">@Html.AntiForgeryToken()</form>
+
+    <div id="promo-modal" data-modal style="background: var(--color-scrim); display: none"
+         class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+        <div id="promo-modal-body" class="surface my-8 w-full animate-rise p-6 max-w-3xl">
+            @if (Model.Form != null)
+            {
+                <partial name="_PromotionForm" model="Model.Form" />
+            }
+        </div>
+    </div>
+
+    <partial name="_ConfirmDialog" model="deleteDialog" />
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(function () {
+            $.extend($.validator.messages, {
+                min: $.validator.format('Giá trị nhỏ nhất là {0}.'),
+                max: $.validator.format('Giá trị lớn nhất là {0}.'),
+                step: $.validator.format('Giá trị phải là bội số của {0}.')
+            });
+
+            function applyDiscountType() {
+                var percent = $('#DiscountType').val() === 'Percentage';
+                $('[data-value-label]').text(percent ? 'Phần trăm giảm (%)' : 'Số tiền giảm (đồng)');
+                var $value = $('#Value');
+                $value.attr({ min: percent ? 1 : 1000, step: percent ? 1 : 1000 });
+                if (percent) $value.attr('max', 100); else $value.removeAttr('max');
+                $('[data-max-discount]').toggle(percent);
+            }
+
+            function initForm() {
+                var $form = $('#promo-modal-body form');
+                $form.removeData('validator').removeData('unobtrusiveValidation');
+                $.validator.unobtrusive.parse($form);
+            }
+
+            $(document).on('input', '#Code', function () {
+                this.value = this.value.toUpperCase();
+            });
+            $(document).on('change', '#DiscountType', applyDiscountType);
+
+            $('[data-promo-form]').on('click', function () {
+                $.ajax({
+                    url: $(this).data('promo-form'),
+                    success: function (response) {
+                        $('#promo-modal-body').html(response);
+                        initForm();
+                        CB.openModal('#promo-modal');
+                    }
+                });
+            });
+
+            $('[data-promo-delete]').on('click', function () {
+                var code = $(this).data('code');
+                var locked = $(this).data('locked') === true;
+                var $dialog = $('#promo-delete-dialog');
+                $('#promo-delete-form').attr('action', $(this).data('promo-delete'));
+                $dialog.find('h3').text(locked ? 'Tắt voucher' : 'Xoá voucher');
+                $dialog.find('[data-confirm-body]').text(locked
+                    ? 'Voucher ' + code + ' đã có đơn sử dụng nên sẽ chỉ bị tắt, không xoá hẳn. Tiếp tục?'
+                    : 'Xoá hẳn voucher ' + code + '? Không khôi phục được.');
+                $dialog.find('[data-confirm-submit]').text(locked ? 'Tắt voucher' : 'Xoá');
+                CB.openModal($dialog);
+            });
+
+            @if (Model.Form != null)
+            {
+                @:CB.openModal('#promo-modal');
+            }
+        });
+    </script>
+}

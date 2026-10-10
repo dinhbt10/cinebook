@@ -7,10 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace CineBook.Application.Services;
 
-/// <summary>
-/// Soát vé tại cửa phòng chiếu — §06 tài liệu flow.
-/// Sáu kết quả: vé giả, dùng lại, đã hủy, sai suất/sai rạp, ngoài giờ, cho vào.
-/// </summary>
 public class CheckInService(
     IAppDbContext db,
     IQrSigner qrSigner,
@@ -22,7 +18,6 @@ public class CheckInService(
     public async Task<CheckInResponse> ScanAsync(
         string qrPayload, Guid staffUserId, Guid? staffCinemaId, CancellationToken ct = default)
     {
-        // BR-11: mã QR phải mang chữ ký hợp lệ.
         if (!qrSigner.TryParsePayload(qrPayload, out var ticketCode))
             return Deny("VE_GIA", "Mã QR không hợp lệ hoặc đã bị chỉnh sửa.");
 
@@ -38,13 +33,11 @@ public class CheckInService(
         var showtime = ticket.Booking.Showtime;
         var info = new { showtime.Movie.Title, Room = showtime.Room.Name, showtime.StartsAtUtc };
 
-        // BR-12
         if (ticket.Status == TicketStatus.Used)
             return new CheckInResponse(false, "DUNG_LAI",
                 $"Vé đã được sử dụng lúc {ToLocal(ticket.CheckedInAtUtc!.Value):HH:mm dd/MM}.",
                 ticket.Code, ticket.Seat.Label, info.Title, info.Room, info.StartsAtUtc);
 
-        // BR-13
         if (ticket.Status == TicketStatus.Cancelled
             || ticket.Booking.Status is BookingStatus.Cancelled or BookingStatus.Refunded)
             return new CheckInResponse(false, "DA_HUY", "Vé đã bị hủy hoặc đã hoàn tiền.",
@@ -54,7 +47,6 @@ public class CheckInService(
             return new CheckInResponse(false, "CHUA_THANH_TOAN", "Đơn hàng chưa thanh toán.",
                 ticket.Code, ticket.Seat.Label, info.Title, info.Room, info.StartsAtUtc);
 
-        // BR-19: nhân viên chỉ soát vé của rạp mình.
         if (staffCinemaId is { } cid && showtime.Room.CinemaId != cid)
             return new CheckInResponse(false, "SAI_RAP",
                 $"Vé này thuộc rạp {showtime.Room.Cinema.Name}.",
@@ -71,7 +63,6 @@ public class CheckInService(
                 "Đã quá giờ vào cửa, cần nhân viên duyệt thủ công.",
                 ticket.Code, ticket.Seat.Label, info.Title, info.Room, info.StartsAtUtc);
 
-        // BR-12: đổi trạng thái nguyên tử — hai máy quét cùng lúc thì chỉ một máy thành công.
         var affected = await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE "Tickets"
             SET "Status" = {(int)TicketStatus.Used},
@@ -91,7 +82,6 @@ public class CheckInService(
             ticket.Code, ticket.Seat.Label, info.Title, info.Room, info.StartsAtUtc);
     }
 
-    /// <summary>Tra cứu bằng mã vé khi mã QR mờ không quét được.</summary>
     public async Task<CheckInResponse> ScanByCodeAsync(
         string ticketCode, Guid staffUserId, Guid? staffCinemaId, CancellationToken ct = default)
         => await ScanAsync(qrSigner.BuildPayload(ticketCode.Trim().ToUpperInvariant()),

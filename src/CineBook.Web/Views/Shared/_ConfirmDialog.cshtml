@@ -1,0 +1,20 @@
+@model ConfirmDialogModel
+<div id="@Model.Id" data-modal data-form="@Model.Form" style="background: var(--color-scrim); display: none"
+     class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+    <div class="surface my-8 w-full animate-rise p-6 max-w-lg">
+        <h3 class="mb-5 text-lg font-bold">@Model.Title</h3>
+        <div role="alertdialog" aria-modal="true" aria-label="@Model.Title" class="flex flex-col gap-5">
+            <div class="flex items-start gap-3.5">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-velvet-950 text-velvet-400">
+                    @Html.Icon("alert-triangle", 18)
+                </span>
+                <div class="min-w-0 flex-1 text-sm leading-relaxed text-muted" data-confirm-body>@Model.Body</div>
+            </div>
+            <div class="@Ui.ErrorNote" data-confirm-error style="@(string.IsNullOrEmpty(Model.Error) ? "display:none" : "")">@Model.Error</div>
+            <div class="flex flex-wrap justify-end gap-2.5">
+                <button type="button" data-modal-close autofocus class="@Ui.Button("secondary")">@Model.CancelLabel</button>
+                <button type="button" data-confirm-submit class="@Ui.Button("danger")">@Model.ConfirmLabel</button>
+            </div>
+        </div>
+    </div>
+</div>

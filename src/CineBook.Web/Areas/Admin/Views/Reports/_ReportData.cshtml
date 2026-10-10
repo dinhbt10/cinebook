@@ -1,0 +1,85 @@
+@model ReportsViewModel
+<div class="mb-6 grid gap-4 sm:grid-cols-3">
+    <div class="surface p-5">
+        <p class="text-[12px] uppercase tracking-wide text-faint">Doanh thu vé</p>
+        <p class="mt-2 font-display text-2xl font-extrabold tabular">@Fmt.Money(Model.TotalTicket)</p>
+    </div>
+    <div class="surface p-5">
+        <p class="text-[12px] uppercase tracking-wide text-faint">Doanh thu bắp nước</p>
+        <p class="mt-2 font-display text-2xl font-extrabold tabular">@Fmt.Money(Model.TotalCombo)</p>
+    </div>
+    <div class="surface p-5">
+        <p class="text-[12px] uppercase tracking-wide text-faint">Tổng cộng</p>
+        <p class="mt-2 font-display text-2xl font-extrabold text-brand-400 tabular">@Fmt.Money(Model.TotalTicket + Model.TotalCombo)</p>
+    </div>
+</div>
+
+<div class="grid gap-5 lg:grid-cols-2">
+    <div class="surface overflow-hidden">
+        <h2 class="border-b border-ink-700 px-5 py-4 text-base font-bold">Theo ngày</h2>
+        @if (Model.ByDay.Count == 0)
+        {
+            <p class="p-8 text-center text-[13px] text-faint">Chưa có dữ liệu trong khoảng này.</p>
+        }
+        else
+        {
+            <div class="max-h-96 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-ink-850">
+                        <tr class="border-b border-ink-700 text-left text-[11px] uppercase tracking-wide text-faint">
+                            <th class="px-5 py-3 font-semibold">Ngày</th>
+                            <th class="px-5 py-3 font-semibold">Đơn</th>
+                            <th class="px-5 py-3 text-right font-semibold">Vé</th>
+                            <th class="px-5 py-3 text-right font-semibold">Bắp nước</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.ByDay)
+                        {
+                            <tr class="border-b border-ink-800 last:border-0">
+                                <td class="px-5 py-2.5 tabular">@Fmt.Date(r.Date)</td>
+                                <td class="px-5 py-2.5 tabular">@r.BookingCount</td>
+                                <td class="px-5 py-2.5 text-right tabular">@Fmt.Money(r.TicketRevenue)</td>
+                                <td class="px-5 py-2.5 text-right tabular">@Fmt.Money(r.ConcessionRevenue)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="surface overflow-hidden">
+        <h2 class="border-b border-ink-700 px-5 py-4 text-base font-bold">Theo phim</h2>
+        @if (Model.ByMovie.Count == 0)
+        {
+            <p class="p-8 text-center text-[13px] text-faint">Chưa có dữ liệu.</p>
+        }
+        else
+        {
+            <div class="max-h-96 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-ink-850">
+                        <tr class="border-b border-ink-700 text-left text-[11px] uppercase tracking-wide text-faint">
+                            <th class="px-5 py-3 font-semibold">Phim</th>
+                            <th class="px-5 py-3 text-right font-semibold">Vé</th>
+                            <th class="px-5 py-3 text-right font-semibold">Lấp đầy</th>
+                            <th class="px-5 py-3 text-right font-semibold">Doanh thu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in Model.ByMovie)
+                        {
+                            <tr class="border-b border-ink-800 last:border-0">
+                                <td class="max-w-40 truncate px-5 py-2.5">@m.Title</td>
+                                <td class="px-5 py-2.5 text-right tabular">@m.TicketCount</td>
+                                <td class="px-5 py-2.5 text-right tabular">@Fmt.Percent(m.OccupancyRate, 0)</td>
+                                <td class="px-5 py-2.5 text-right tabular">@Fmt.Money(m.Revenue)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

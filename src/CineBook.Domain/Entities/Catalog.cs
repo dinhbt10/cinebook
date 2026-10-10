@@ -28,13 +28,6 @@ public class Promotion : BaseEntity
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>
-/// Voucher khách đã lưu vào kho của mình.
-///
-/// Trước đây khách phải nhớ và gõ đúng mã giảm giá. Bảng này cho phép lưu sẵn
-/// voucher rồi tới bước thanh toán chỉ việc bấm chọn. Lưu vào kho KHÔNG giữ chỗ
-/// lượt dùng — điều kiện dùng vẫn được kiểm tra lại lúc đặt vé (BR-05).
-/// </summary>
 public class SavedVoucher
 {
     public Guid UserId { get; set; }
@@ -44,10 +37,6 @@ public class SavedVoucher
     public DateTime SavedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
-/// <summary>
-/// BR-18: giá = giá cơ sở của suất × hệ số của các quy tắc khớp + phụ thu.
-/// Trường nào để null nghĩa là quy tắc áp cho mọi giá trị của trường đó.
-/// </summary>
 public class PriceRule : BaseEntity
 {
     public string Name { get; set; } = null!;
@@ -55,7 +44,6 @@ public class PriceRule : BaseEntity
     public RoomType? RoomType { get; set; }
     public SeatType? SeatType { get; set; }
 
-    /// <summary>0 = Chủ nhật … 6 = Thứ bảy. Null = mọi ngày.</summary>
     public int? DayOfWeek { get; set; }
 
     public TimeOnly? TimeFrom { get; set; }
@@ -67,7 +55,6 @@ public class PriceRule : BaseEntity
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>BR-20: ghi lại mọi thao tác hoàn tiền và sửa giá.</summary>
 public class AuditLog : BaseEntity
 {
     public Guid? ActorUserId { get; set; }

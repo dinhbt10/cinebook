@@ -1,0 +1,72 @@
+@model RoomsIndexViewModel
+<div class="p-6 lg:p-8">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-2xl font-extrabold">Rạp &amp; phòng chiếu</h1>
+        <button data-modal-open="#room-modal" class="@Ui.Button()">
+            @Html.Icon("plus", 16) Thêm phòng chiếu
+        </button>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+        @foreach (var block in Model.Cinemas)
+        {
+            <div class="surface p-5">
+                <h2 class="font-display text-lg font-bold">@block.Cinema.Name</h2>
+                <p class="mt-1.5 flex items-start gap-2 text-[13px] text-faint">
+                    @Html.Icon("map-pin", 13, "mt-0.5 shrink-0") @block.Cinema.Address, @block.Cinema.City
+                </p>
+
+                <div class="mt-4 flex flex-col gap-2 border-t border-ink-700 pt-4">
+                    @if (block.Rooms.Count == 0)
+                    {
+                        <p class="text-[13px] text-faint">Chưa có phòng chiếu nào.</p>
+                    }
+                    @foreach (var r in block.Rooms)
+                    {
+                        <div class="flex items-center justify-between rounded-lg bg-ink-900 px-3.5 py-2.5">
+                            <span class="flex items-center gap-2 text-sm">
+                                @Html.Icon("projector", 14, "text-faint") @r.Name
+                            </span>
+                            <span class="flex items-center gap-2">
+                                <span class="@Ui.Badge(r.RoomType == "Imax" ? "brand" : "outline")">@Fmt.Label(Fmt.RoomTypeLabel, r.RoomType)</span>
+                                <span class="text-[12px] text-faint tabular">@r.SeatCount ghế</span>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div id="room-modal" data-modal style="background: var(--color-scrim); display: none"
+         class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+        <div class="surface my-8 w-full animate-rise p-6 max-w-lg">
+            <h3 class="mb-5 text-lg font-bold">Thêm phòng chiếu</h3>
+            <partial name="_RoomForm" model="Model.Form" />
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(function () {
+            function updateSummary() {
+                var rowCount = Number($('#RowCount').val());
+                var seatsPerRow = Number($('#SeatsPerRow').val());
+                var total = rowCount > 1
+                    ? (rowCount - 1) * seatsPerRow + Math.max(1, Math.floor(seatsPerRow / 2))
+                    : rowCount * seatsPerRow;
+                $('[data-room-total]').text(total + ' ghế');
+                $('[data-room-last]').text(String.fromCharCode(64 + Math.max(1, rowCount)));
+            }
+
+            $('#RowCount, #SeatsPerRow').on('input', updateSummary);
+
+            @if (Model.OpenForm)
+            {
+                @:CB.openModal('#room-modal');
+            }
+        });
+    </script>
+}

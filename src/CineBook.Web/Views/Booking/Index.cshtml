@@ -1,0 +1,200 @@
+@model BookingPageViewModel
+@{
+    var map = Model.SeatMap;
+    var booking = Model.Booking;
+    var confirm = Model.Step == "confirm" && booking != null;
+    var stepLabels = new[] { "Chọn ghế", "Bắp nước & ưu đãi", "Thanh toán" };
+    var stepIndex = Model.Step == "seats" ? 0 : Model.Step == "extras" ? 1 : 2;
+    var legend = new[]
+    {
+        new { Cls = "border-ink-600 bg-ink-800", Label = "Còn trống" },
+        new { Cls = "border-brand-400 bg-brand-500", Label = "Bạn đang chọn" },
+        new { Cls = "border-amber-500/50 bg-amber-950", Label = "Người khác giữ" },
+        new { Cls = "border-ink-700 bg-ink-700", Label = "Đã bán" },
+        new { Cls = "border-dashed border-ink-600 bg-transparent", Label = "Bảo trì" },
+    };
+    var heldSeats = Model.Resumed || booking == null ? null : string.Join(",", Model.SelectedSeatIds);
+}
+
+<div id="booking-page" class="mx-auto max-w-6xl px-4 py-8"
+     data-showtime="@map.ShowtimeId" data-step="@Model.Step"
+     data-selected="@string.Join(",", Model.SelectedSeatIds)" data-promo="@Model.PromotionCode"
+     data-error="@(confirm ? null : Model.Error)">
+    <div class="mb-7">
+        <div class="mb-3 flex items-center justify-between gap-4">
+            <button type="button" onclick="history.back()"
+                    class="flex items-center gap-1.5 text-[13px] text-faint transition-colors hover:text-cream">
+                @Html.Icon("arrow-left", 14) Quay lại
+            </button>
+            <button type="button" data-abort
+                    class="flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-[13px] text-muted transition-colors hover:border-velvet-500/60 hover:text-velvet-400 disabled:opacity-50">
+                @Html.Icon("x", 14) Hủy đặt vé
+            </button>
+        </div>
+        <h1 class="font-display text-2xl font-extrabold md:text-3xl">@map.MovieTitle</h1>
+        <p class="mt-1.5 text-sm text-muted">@map.CinemaName · @map.RoomName · @Fmt.FullDateTime(map.StartsAtUtc)</p>
+    </div>
+
+    <ol data-steps class="mb-8 flex items-center text-[13px]">
+        @for (var i = 0; i < stepLabels.Length; i++)
+        {
+            var state = i < stepIndex ? "done" : i == stepIndex ? "active" : "todo";
+            <li data-step-index="@i" class="@HtmlExtensions.Css("flex items-center gap-2.5", "flex-1", i > 0)">
+                @if (i > 0)
+                {
+                    <span class="h-px flex-1 bg-ink-700"><span data-step-bar class="@HtmlExtensions.Css("block h-px bg-brand-500 transition-all duration-500", state == "todo" ? "w-0" : "w-full")"></span></span>
+                }
+                <span data-step-dot class="@HtmlExtensions.Css("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all",
+                    "bg-brand-500 text-on-brand shadow-[0_0_0_4px_rgba(229, 9, 20,.15)]", state == "active",
+                    "bg-mint-950 text-mint-400", state == "done",
+                    "border border-ink-600 text-faint", state == "todo")">@if (state == "done") {@Html.Icon("check", 13)} else {@(i + 1)}</span>
+                <span data-step-label class="@HtmlExtensions.Css("hidden sm:inline", state == "todo" ? "text-faint" : "text-cream")">@stepLabels[i]</span>
+            </li>
+        }
+    </ol>
+
+    <div class="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div class="min-w-0">
+            @if (confirm)
+            {
+                <partial name="_ConfirmStep" model="Model" />
+            }
+            else
+            {
+                <div data-panel="seats" class="surface p-5 sm:p-7" style="@(Model.Step == "seats" ? null : "display:none")">
+                    <div class="mb-2 flex items-center justify-between">
+                        <p class="text-[13px] text-faint">Tối đa @map.MaxSeatsPerBooking ghế mỗi lần đặt</p>
+                        <button type="button" data-refresh
+                                class="flex items-center gap-1.5 text-[12px] text-faint transition-colors hover:text-cream">
+                            @Html.Icon("refresh-cw", 12) Làm mới
+                        </button>
+                    </div>
+                    <div class="on-dark relative overflow-hidden rounded-2xl bg-ink-950 px-3 py-7 sm:px-6">
+                        <div class="pointer-events-none absolute inset-0 screen-glow" aria-hidden="true"></div>
+                        <div class="pointer-events-none absolute inset-0 grain opacity-25" aria-hidden="true"></div>
+                        <div class="relative flex flex-col items-center">
+                            <div class="mb-8 w-full max-w-2xl select-none">
+                                <svg viewBox="0 0 400 86" class="w-full" role="img" aria-label="Màn hình chiếu"><defs><linearGradient id="cb-screen" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="var(--color-brand-500)" stop-opacity="0.15"></stop><stop offset="50%" stop-color="var(--color-brand-400)" stop-opacity="1"></stop><stop offset="100%" stop-color="var(--color-brand-500)" stop-opacity="0.15"></stop></linearGradient><linearGradient id="cb-beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--color-brand-500)" stop-opacity="0.30"></stop><stop offset="60%" stop-color="var(--color-brand-500)" stop-opacity="0.07"></stop><stop offset="100%" stop-color="var(--color-brand-500)" stop-opacity="0"></stop></linearGradient></defs><path d="M 30 18 Q 200 -6 370 18 L 400 86 L 0 86 Z" fill="url(#cb-beam)"></path><path d="M 30 18 Q 200 -6 370 18" fill="none" stroke="url(#cb-screen)" stroke-width="5" stroke-linecap="round"></path><path d="M 30 23 Q 200 -1 370 23" fill="none" stroke="var(--color-brand-600)" stroke-width="1.5" stroke-linecap="round" opacity="0.5"></path></svg>
+                                <p class="-mt-6 text-center font-mono text-[11px] tracking-[0.4em] text-faint">MÀN HÌNH</p>
+                            </div>
+                            <div class="w-full overflow-x-auto pb-2">
+                                <div id="seat-rows" class="mx-auto flex w-fit flex-col gap-1.5"></div>
+                            </div>
+                            <div class="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2.5 border-t border-ink-800 pt-6">
+                                @foreach (var item in legend)
+                                {
+                                    <span class="flex items-center gap-2 text-[12px] text-faint"><span class="h-4 w-4 rounded-t-md rounded-b-sm border @item.Cls"></span>@item.Label</span>
+                                }
+                                <span class="flex items-center gap-2 text-[12px] text-faint"><span class="h-[3px] w-3 rounded-full bg-brand-600/70"></span> Ghế VIP</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div data-panel="extras" class="flex flex-col gap-5" style="@(Model.Step == "extras" ? null : "display:none")">
+                    <div class="surface p-5 sm:p-6">
+                        <div class="mb-4 flex items-center gap-2">
+                            @Html.Icon("popcorn", 17, "text-brand-500")
+                            <h2 class="text-lg font-bold">Bắp nước</h2>
+                        </div>
+                        <div class="flex flex-col gap-3">
+                            @foreach (var c in Model.Combos)
+                            {
+                                var qty = Model.ComboQuantities.TryGetValue(c.Id, out var q) ? q : 0;
+                                <div data-combo="@c.Id" data-price="@c.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-name="@c.Name"
+                                     class="flex items-center gap-4 rounded-xl border border-ink-700 bg-ink-900 p-3.5">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium">@c.Name</p>
+                                        @if (!string.IsNullOrEmpty(c.Description))
+                                        {
+                                            <p class="mt-0.5 text-[12px] text-faint">@c.Description</p>
+                                        }
+                                        <p class="mt-1 text-[13px] font-semibold text-brand-400 tabular">@Fmt.Money(c.Price)</p>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-1">
+                                        <button type="button" data-qty="-1" disabled="@(qty == 0)"
+                                                class="flex h-7 w-7 items-center justify-center rounded-lg border border-ink-600 text-muted transition-colors hover:border-ink-500 hover:text-cream disabled:opacity-35">
+                                            @Html.Icon("minus", 13)
+                                        </button>
+                                        <span data-qty-value="@qty" class="w-7 text-center text-sm font-semibold tabular">@qty</span>
+                                        <button type="button" data-qty="1" disabled="@(qty >= 9)"
+                                                class="flex h-7 w-7 items-center justify-center rounded-lg border border-ink-600 text-muted transition-colors hover:border-ink-500 hover:text-cream disabled:opacity-35">
+                                            @Html.Icon("plus", 13)
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="surface p-5 sm:p-6">
+                        <div class="mb-1 flex items-center gap-2">
+                            @Html.Icon("tag", 17, "text-brand-500")
+                            <h2 class="text-lg font-bold">Voucher</h2>
+                        </div>
+                        <p class="mb-4 text-[13px] text-faint">Bấm chọn voucher, số tiền giảm hiện sẵn theo đúng đơn của bạn.</p>
+                        <div id="voucher-picker"></div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <aside class="lg:sticky lg:top-24 lg:self-start">
+            <div class="surface flex flex-col gap-4 p-5">
+                @if (confirm)
+                {
+                    <partial name="_ConfirmAside" model="Model" />
+                }
+                else
+                {
+                    <div data-chosen>
+                        <p class="mb-2 text-[13px] font-semibold text-muted">Ghế đã chọn</p>
+                        <p class="text-[13px] text-faint">Chưa chọn ghế nào</p>
+                    </div>
+                    <div data-combo-summary class="border-t border-ink-700 pt-3" style="display:none"></div>
+                    <div data-summary class="border-t border-ink-700 pt-3 text-[13px]"></div>
+                    <div data-aside-error class="@Ui.ErrorNote" style="display:none"></div>
+                    <button type="button" data-next class="@Ui.Button("primary", "lg")" style="@(Model.Step == "seats" ? null : "display:none")" disabled>
+                        Tiếp tục @Html.Icon("arrow-right", 16)
+                    </button>
+                    <div data-extras-actions class="flex flex-col gap-2" style="@(Model.Step == "extras" ? null : "display:none")">
+                        <button type="submit" form="hold-form" data-hold class="@Ui.Button("primary", "lg")">
+                            Giữ ghế và tiếp tục @Html.Icon("arrow-right", 16)
+                        </button>
+                        <button type="button" data-back-seats class="@Ui.Button("ghost")">Quay lại chọn ghế</button>
+                    </div>
+                }
+            </div>
+        </aside>
+    </div>
+
+    @{
+        var abortBody = booking != null
+            ? new Microsoft.AspNetCore.Html.HtmlString("<p>Ghế <b class=\"font-mono text-cream\">" + Html.Encode(string.Join(", ", booking.Seats.Select(s => s.Label))) +
+                "</b> đang giữ cho bạn sẽ được trả lại ngay cho người khác. Đơn <b class=\"font-mono text-cream\">" + Html.Encode(booking.Code) +
+                "</b> đã hủy thì không khôi phục được.</p>")
+            : new Microsoft.AspNetCore.Html.HtmlString("<p>Bạn sẽ thoát khỏi trang đặt vé và quay về trang chủ.</p>");
+    }
+    <partial name="_ConfirmDialog" model="@(new ConfirmDialogModel { Id = "abort-dialog", Title = "Hủy đặt vé?", ConfirmLabel = "Hủy đặt vé", CancelLabel = "Tiếp tục đặt vé", Form = "#abort-form", Body = abortBody, Error = Model.AbortError })" />
+</div>
+
+<form id="abort-form" asp-action="Abort" asp-route-id="@map.ShowtimeId" method="post"></form>
+@if (confirm)
+{
+    <form id="pay-form" asp-action="Pay" asp-route-id="@map.ShowtimeId" method="post">
+        <input type="hidden" name="Provider" value="" />
+        <input type="hidden" name="MethodCode" value="" />
+        <input type="hidden" name="HeldSeats" value="@heldSeats" />
+    </form>
+    <form id="cancel-hold-form" asp-action="CancelHold" asp-route-id="@map.ShowtimeId" method="post">
+        <input type="hidden" name="HeldSeats" value="@heldSeats" />
+    </form>
+}
+else
+{
+    <form id="hold-form" asp-action="Hold" asp-route-id="@map.ShowtimeId" method="post"></form>
+}
+
+@section Scripts {
+    <script src="~/js/booking.js" asp-append-version="true"></script>
+}

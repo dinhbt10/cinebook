@@ -1,0 +1,57 @@
+@model CreateRoomViewModel
+<form asp-action="Create" method="post" data-loading class="flex flex-col gap-4">
+    <partial name="_FormError" />
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Rạp</span>
+            <select asp-for="CinemaId" asp-items="(SelectList)ViewBag.CinemaOptions" class="@Ui.Select()"></select>
+            <span asp-validation-for="CinemaId" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Tên phòng</span>
+            <input asp-for="Name" placeholder="Phòng 4" class="@Ui.Input()" />
+            <span asp-validation-for="Name" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Loại phòng</span>
+            <select asp-for="RoomType" class="@Ui.Select()">
+                <option value="TwoD">2D</option>
+                <option value="ThreeD">3D</option>
+                <option value="Imax">IMAX</option>
+            </select>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Số hàng ghế</span>
+            <input asp-for="RowCount" class="@Ui.Input("peer")" />
+            <span asp-validation-for="RowCount" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Tối đa 26 hàng, đặt tên A đến Z</span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Số ghế mỗi hàng</span>
+            <input asp-for="SeatsPerRow" class="@Ui.Input()" />
+            <span asp-validation-for="SeatsPerRow" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Hàng VIP từ / đến</span>
+            <div class="flex gap-2">
+                <input asp-for="VipFromRow" class="@Ui.Input()" />
+                <input asp-for="VipToRow" class="@Ui.Input()" />
+            </div>
+            <span asp-validation-for="VipFromRow" class="@Ui.FieldError empty:hidden"></span>
+            <span asp-validation-for="VipToRow" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+    </div>
+
+    <div class="rounded-xl border border-ink-700 bg-ink-900 p-3.5 text-[13px] text-muted">
+        Sẽ sinh <b class="text-cream" data-room-total>@Model.TotalSeats() ghế</b> — hàng <b class="text-cream">A</b> đến <b class="text-cream" data-room-last>@Model.LastRowLabel()</b>,
+        hàng cuối là ghế đôi theo thông lệ rạp Việt Nam.
+        <br />Giá vé ghế thường, VIP và ghế đôi đặt ở bước <b class="text-cream">tạo suất chiếu</b>,
+        vì mỗi suất một giá tuỳ khung giờ và ngày chiếu.
+    </div>
+
+    <div class="flex justify-end gap-2 pt-1">
+        <button type="button" data-modal-close class="@Ui.Button("ghost")">Hủy</button>
+        <button type="submit" class="@Ui.Button()">Tạo phòng</button>
+    </div>
+</form>

@@ -1,0 +1,71 @@
+@model List<ShowtimeListItemDto>
+@using System.Globalization
+@if (Model.Count == 0)
+{
+    <div class="surface p-10 text-center text-[13px] text-faint">Không có suất chiếu nào trong ngày này.</div>
+}
+else
+{
+    <div class="surface overflow-x-auto">
+        <table class="w-full min-w-[760px] text-sm">
+            <thead>
+                <tr class="border-b border-ink-700 text-left text-[11px] uppercase tracking-wide text-faint">
+                    <th class="px-5 py-3.5 font-semibold">Giờ</th>
+                    <th class="px-5 py-3.5 font-semibold">Phim</th>
+                    <th class="px-5 py-3.5 font-semibold">Rạp / phòng</th>
+                    <th class="px-5 py-3.5 font-semibold">Ghế</th>
+                    <th class="px-5 py-3.5 font-semibold">Giá từ</th>
+                    <th class="px-5 py-3.5"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model)
+                {
+                    var sold = s.TotalSeats - s.AvailableSeats;
+                    var rate = s.TotalSeats > 0 ? (double)sold / s.TotalSeats : 0;
+                    var tone = s.IsCancelled ? "velvet" : s.IsOnSale ? "mint" : "faint";
+                    var status = s.IsCancelled ? "Đã hủy" : s.IsOnSale ? "Đang bán" : "Ngừng bán";
+                    <tr class="border-b border-ink-800 last:border-0">
+                        <td class="px-5 py-3"><span class="font-display text-base font-bold tabular">@Fmt.Time(s.StartsAtUtc)</span></td>
+                        <td class="px-5 py-3">
+                            <p class="font-medium">@s.MovieTitle</p>
+                            <p class="text-[12px] text-faint">@Fmt.Label(Fmt.SubtitleLabel, s.SubtitleMode)</p>
+                        </td>
+                        <td class="px-5 py-3">
+                            <p>@s.CinemaName</p>
+                            <p class="text-[12px] text-faint">@s.RoomName · @Fmt.Label(Fmt.RoomTypeLabel, s.RoomType)</p>
+                        </td>
+                        <td class="px-5 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="h-1.5 w-16 overflow-hidden rounded-full bg-ink-800">
+                                    <div class="h-full rounded-full bg-brand-500" style="width: @((rate * 100).ToString(CultureInfo.InvariantCulture))%"></div>
+                                </div>
+                                <span class="text-[12px] text-faint tabular">@sold<!---->/<!---->@s.TotalSeats</span>
+                            </div>
+                        </td>
+                        <td class="px-5 py-3 tabular">@Fmt.Money(s.FromPrice)</td>
+                        <td class="px-5 py-3">
+                            <div class="flex items-center justify-end gap-1">
+                                <span class="@Ui.Badge(tone)">@status</span>
+                                @if (!s.IsCancelled)
+                                {
+                                    <button type="button" title="@(s.IsOnSale ? "Ngừng bán" : "Mở bán")"
+                                            data-toggle-sale="@s.Id" data-value="@(s.IsOnSale ? "false" : "true")"
+                                            class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                                        @Html.Icon("power", 15)
+                                    </button>
+                                    <button type="button" title="Hủy suất chiếu (hoàn 100% vé đã bán)"
+                                            data-cancel-showtime="@s.Id" data-time="@Fmt.Time(s.StartsAtUtc)"
+                                            data-movie="@s.MovieTitle" data-sold="@sold"
+                                            class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-velvet-400">
+                                        @Html.Icon("ban", 15)
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

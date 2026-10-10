@@ -1,0 +1,179 @@
+@model DashboardViewModel
+@using System.Globalization
+@{
+    var s = Model.Stats;
+    var stats = new[]
+    {
+        new { Icon = "circle-dollar-sign", Label = "Doanh thu hôm nay", Value = Fmt.Money(s.RevenueToday), Sub = "Tháng này " + Fmt.Money(s.RevenueThisMonth) },
+        new { Icon = "ticket", Label = "Vé bán hôm nay", Value = s.TicketsToday.ToString(), Sub = s.BookingsToday + " đơn hàng" },
+        new { Icon = "armchair", Label = "Tỷ lệ lấp đầy", Value = Fmt.Percent(s.OccupancyToday, 1), Sub = "ghế đã bán trên tổng ghế hôm nay" },
+        new { Icon = "monitor-play", Label = "Suất chiếu hôm nay", Value = s.ShowtimesToday.ToString(), Sub = "đang mở bán" },
+    };
+}
+<div class="p-6 lg:p-8">
+    <h1 class="mb-6 text-2xl font-extrabold">Tổng quan</h1>
+
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach (var stat in stats)
+        {
+            <div class="surface p-5">
+                <div class="mb-3 flex items-center gap-2 text-faint">
+                    <span class="text-brand-500">@Html.Icon(stat.Icon, 17)</span>
+                    <span class="text-[12px] font-medium uppercase tracking-wide">@stat.Label</span>
+                </div>
+                <p class="font-display text-2xl font-extrabold tabular">@stat.Value</p>
+                <p class="mt-1 text-[12px] text-faint">@stat.Sub</p>
+            </div>
+        }
+    </div>
+
+    <div class="surface mb-6 p-5">
+        <h2 class="mb-5 text-base font-bold">Doanh thu 14 ngày gần nhất</h2>
+        <div id="revenue-chart" class="relative h-64 w-full">
+            <div class="absolute inset-y-0 left-0 -right-4">
+                <canvas></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="surface p-5">
+        <h2 class="mb-4 text-base font-bold">Phim bán chạy</h2>
+        @if (Model.TopMovies.Count == 0)
+        {
+            <p class="py-8 text-center text-[13px] text-faint">Chưa có dữ liệu.</p>
+        }
+        else
+        {
+            <div class="flex flex-col gap-3">
+                @for (var i = 0; i < Model.TopMovies.Count; i++)
+                {
+                    var m = Model.TopMovies[i];
+                    var width = Math.Max(3, m.OccupancyRate * 100).ToString(CultureInfo.InvariantCulture);
+                    <div class="flex items-center gap-4">
+                        <span class="w-5 shrink-0 text-center font-mono text-[12px] text-faint">@(i + 1)</span>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-baseline justify-between gap-3">
+                                <p class="truncate text-sm font-medium">@m.Title</p>
+                                <p class="shrink-0 text-[13px] font-semibold text-brand-400 tabular">@Fmt.Money(m.Revenue)</p>
+                            </div>
+                            <div class="mt-1.5 flex items-center gap-3">
+                                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-800">
+                                    <div class="h-full rounded-full bg-brand-500" style="width: @(width)%"></div>
+                                </div>
+                                <span class="shrink-0 text-[11px] text-faint tabular">@m.TicketCount vé · lấp đầy @Fmt.Percent(m.OccupancyRate, 0)</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.js"></script>
+    <script>
+        $(function () {
+            function niceStep(rough, correction) {
+                if (rough <= 0) return 1;
+                var digits = Math.floor(Math.log10(rough)) + 1;
+                var unit = Math.pow(10, digits);
+                var scale = digits !== 1 ? 0.05 : 0.1;
+                return (Math.ceil(rough / unit / scale) + correction) * scale * unit;
+            }
+
+            $.getJSON('@Url.Action("Revenue", "Dashboard")', function (data) {
+                if (data.length === 0) {
+                    $('#revenue-chart').replaceWith('<p class="py-12 text-center text-[13px] text-faint">Chưa có dữ liệu doanh thu.</p>');
+                    return;
+                }
+
+                var max = Math.max.apply(null, data.map(function (p) { return p.total; }));
+                var correction = 0;
+                var step = niceStep(max / 4, correction);
+                while (step * 4 < max) {
+                    correction++;
+                    step = niceStep(max / 4, correction);
+                }
+
+                var canvas = $('#revenue-chart canvas')[0];
+                var ctx = canvas.getContext('2d');
+                Chart.defaults.font.family = $('body').css('font-family');
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(function (p) { return p.date; }),
+                        datasets: [{
+                            data: data.map(function (p) { return p.total; }),
+                            borderColor: '#F0A62F',
+                            borderWidth: 2,
+                            fill: true,
+                            backgroundColor: function (context) {
+                                var area = context.chart.chartArea;
+                                if (!area) return 'rgba(240, 166, 47, 0.42)';
+                                var gradient = context.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+                                gradient.addColorStop(0, 'rgba(240, 166, 47, 0.42)');
+                                gradient.addColorStop(1, 'rgba(240, 166, 47, 0)');
+                                return gradient;
+                            },
+                            cubicInterpolationMode: 'monotone',
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            pointHoverBackgroundColor: '#F0A62F',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        layout: { padding: { top: 4, right: 24, bottom: 0, left: 4 } },
+                        interaction: { mode: 'index', intersect: false },
+                        scales: {
+                            x: {
+                                afterFit: function (scale) { scale.height = 30; scale.paddingLeft = 0; scale.paddingRight = 0; },
+                                grid: { display: false },
+                                border: { color: '#29252F' },
+                                ticks: { color: '#736B7D', font: { size: 11 }, maxRotation: 0, autoSkipPadding: 12, padding: 0 }
+                            },
+                            y: {
+                                min: 0,
+                                max: step * 4,
+                                afterFit: function (scale) { scale.width = 46; scale.paddingTop = 0; },
+                                grid: { color: '#29252F', drawTicks: false },
+                                border: { display: false },
+                                ticks: {
+                                    color: '#736B7D',
+                                    font: { size: 11 },
+                                    stepSize: step,
+                                    padding: 8,
+                                    callback: function (v) { return Math.round(v / 1000000) + 'tr'; }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#17151A',
+                                borderColor: '#29252F',
+                                borderWidth: 1,
+                                cornerRadius: 12,
+                                padding: 10,
+                                displayColors: false,
+                                titleColor: '#A79FB0',
+                                titleFont: { size: 13, weight: 'normal' },
+                                bodyColor: '#F0A62F',
+                                bodyFont: { size: 13 },
+                                callbacks: {
+                                    label: function (item) { return 'Doanh thu : ' + CB.money(item.parsed.y); }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+}

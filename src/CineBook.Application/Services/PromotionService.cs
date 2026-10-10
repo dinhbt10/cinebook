@@ -8,20 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineBook.Application.Services;
 
-/// <summary>
-/// Kho voucher của khách, việc thẩm định điều kiện dùng, và phần quản trị voucher.
-///
-/// Toàn bộ luật xét voucher nằm ở <see cref="EvaluateAsync"/> và được dùng chung
-/// cho hai nơi: giao diện hiện danh sách voucher kèm số tiền giảm, và
-/// <see cref="BookingService"/> lúc thực sự chốt đơn. Nhờ vậy con số khách nhìn thấy
-/// luôn khớp với con số hệ thống áp — không thể lệch nhau vì hai chỗ viết luật riêng.
-/// </summary>
 public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
 {
-    /// <summary>Kết quả thẩm định một voucher cho một giá trị đơn cụ thể.</summary>
     public record Evaluation(bool Usable, string? ErrorCode, string? Reason, decimal Discount);
-
-    // ---------------------------------------------------------------- thẩm định
 
     public async Task<Evaluation> EvaluateAsync(
         Promotion promo, Guid userId, decimal orderValue, CancellationToken ct = default)
@@ -40,7 +29,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         if (promo.UsageLimit is { } limit && promo.UsedCount >= limit)
             return new(false, "PROMO_USED_UP", "Mã giảm giá đã hết lượt sử dụng.", 0m);
 
-        // Đơn chờ đã quá hạn giữ ghế không còn chiếm lượt dùng, kể cả khi job dọn đơn chưa chạy.
         var usedByUser = await db.Bookings.CountAsync(b =>
             b.PromotionId == promo.Id && b.UserId == userId &&
             (b.Status == BookingStatus.Paid ||
@@ -49,8 +37,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         if (usedByUser >= promo.PerUserLimit)
             return new(false, "PROMO_PER_USER", "Bạn đã dùng mã này rồi.", 0m);
 
-        // Điều kiện đơn tối thiểu xét cuối cùng: đây là lý do khách còn "sửa được"
-        // bằng cách mua thêm, nên thông báo phải nói rõ còn thiếu bao nhiêu.
         if (orderValue < promo.MinOrderAmount)
             return new(false, "PROMO_MIN_ORDER",
                 $"Cần đơn từ {promo.MinOrderAmount:N0}đ (còn thiếu {promo.MinOrderAmount - orderValue:N0}đ).",
@@ -59,7 +45,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         return new(true, null, null, Discount(promo, orderValue));
     }
 
-    /// <summary>Số tiền giảm, đã chặn trần và làm tròn theo bội số nghìn đồng.</summary>
     public static decimal Discount(Promotion promo, decimal orderValue)
     {
         var discount = promo.DiscountType == DiscountType.Percentage
@@ -72,8 +57,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         return PricingService.RoundToThousand(discount);
     }
 
-    // ---------------------------------------------------------------- kho voucher
-
     public async Task<Result> SaveAsync(Guid userId, Guid promotionId, CancellationToken ct = default)
     {
         var promo = await db.Promotions.AsNoTracking()
@@ -81,7 +64,7 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         if (promo is null) return Result.Fail("NOT_FOUND", "Không tìm thấy voucher.");
 
         if (await db.SavedVouchers.AnyAsync(v => v.UserId == userId && v.PromotionId == promotionId, ct))
-            return Result.Ok();   // lưu lại lần nữa cũng không sao
+            return Result.Ok();
 
         db.SavedVouchers.Add(new SavedVoucher
         {
@@ -93,7 +76,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         return Result.Ok();
     }
 
-    /// <summary>Lưu voucher bằng mã, dùng cho ô "nhập mã" — nhập đúng là vào thẳng kho.</summary>
     public async Task<Result<Guid>> SaveByCodeAsync(Guid userId, string code, CancellationToken ct = default)
     {
         var normalized = code.Trim().ToUpperInvariant();
@@ -119,13 +101,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         return Result.Ok();
     }
 
-    // ---------------------------------------------------------------- đọc
-
-    /// <summary>
-    /// Voucher để hiện ở bước đặt vé: gồm voucher trong kho và mọi voucher đang chạy,
-    /// mỗi cái kèm số tiền giảm thật cho đơn này và lý do nếu chưa dùng được.
-    /// Dùng được xếp trước, trong đó giảm nhiều xếp trên.
-    /// </summary>
     public async Task<IReadOnlyList<VoucherDto>> GetForOrderAsync(
         Guid userId, decimal orderValue, bool savedOnly = false, CancellationToken ct = default)
     {
@@ -137,8 +112,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         var query = db.Promotions.AsNoTracking();
         query = savedOnly
             ? query.Where(p => savedIds.Contains(p.Id))
-            // Voucher đã lưu vẫn hiện dù đã tắt hoặc hết hạn, kèm lý do — để khách
-            // hiểu vì sao nó không dùng được, thay vì thấy nó biến mất không dấu vết.
             : query.Where(p => p.IsActive || savedIds.Contains(p.Id));
 
         var promos = await query.ToListAsync(ct);
@@ -163,17 +136,8 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
             .ToList();
     }
 
-    // ---------------------------------------------------------------- quản trị
-
-    /// <summary>
-    /// Mã chỉ gồm chữ hoa không dấu, số, gạch ngang, gạch dưới. Phải lưu chữ hoa vì lúc
-    /// áp mã, <see cref="BookingService"/> và <see cref="SaveByCodeAsync"/> đều viết hoa
-    /// chuỗi khách nhập rồi so bằng — mã lưu chữ thường sẽ không bao giờ khớp.
-    /// Tối đa 32 ký tự theo độ dài cột.
-    /// </summary>
     private static readonly Regex CodePattern = new("^[A-Z0-9_-]{3,32}$", RegexOptions.Compiled);
 
-    /// <summary>Mọi voucher, kể cả đã tắt hoặc hết hạn, mới tạo xếp trên.</summary>
     public async Task<IReadOnlyList<AdminPromotionDto>> GetAllForAdminAsync(CancellationToken ct = default) =>
         await db.Promotions.AsNoTracking()
             .OrderByDescending(p => p.CreatedAtUtc)
@@ -209,8 +173,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         var invalid = Validate(req, code);
         if (invalid is not null) return invalid;
 
-        // Đã có đơn dùng thì khoá mã và mức giảm: khách đã nhớ mã, và hai đơn cùng
-        // một voucher mà mức giảm khác nhau thì báo cáo không còn đối chiếu được.
         var changesTerms = code != promo.Code
                            || req.DiscountType != promo.DiscountType
                            || req.Value != promo.Value;
@@ -243,11 +205,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         return Result.Ok();
     }
 
-    /// <summary>
-    /// Voucher đã có đơn dùng thì chỉ tắt, không xoá: khoá ngoại từ Booking để SetNull,
-    /// xoá thật sẽ làm các đơn cũ mất dấu voucher đã áp. Cùng cách xử lý với phim đã có
-    /// suất chiếu. Trả về true nếu đã xoá hẳn, false nếu chỉ chuyển sang ngừng áp dụng.
-    /// </summary>
     public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var promo = await db.Promotions.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -271,7 +228,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
 
     private static string NormalizeCode(string? code) => (code ?? "").Trim().ToUpperInvariant();
 
-    /// <summary>Kiểm tra dữ liệu nhập, trả về null nếu hợp lệ.</summary>
     private static Result? Validate(SavePromotionRequest r, string code)
     {
         if (!CodePattern.IsMatch(code))
@@ -304,7 +260,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         p.Name = r.Name.Trim();
         p.DiscountType = r.DiscountType;
         p.Value = r.Value;
-        // Trần giảm chỉ có nghĩa với giảm theo phần trăm.
         p.MaxDiscount = r.DiscountType == DiscountType.Percentage ? r.MaxDiscount : null;
         p.MinOrderAmount = r.MinOrderAmount;
         p.StartsAtUtc = ToUtc(r.StartsAtUtc);
@@ -314,10 +269,6 @@ public class PromotionService(IAppDbContext db, IDateTimeProvider clock)
         p.IsActive = r.IsActive;
     }
 
-    /// <summary>
-    /// Npgsql từ chối ghi DateTime không mang Kind = Utc vào cột timestamptz. Giao diện
-    /// luôn gửi chuỗi có hậu tố Z; gọi thẳng API mà thiếu múi giờ thì coi như đã là UTC.
-    /// </summary>
     private static DateTime ToUtc(DateTime d) => d.Kind switch
     {
         DateTimeKind.Utc => d,

@@ -1,0 +1,50 @@
+@model ShowtimesPageViewModel
+<div class="p-6 lg:p-8">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-2xl font-extrabold">Suất chiếu</h1>
+        <button type="button" data-showtime-create class="@Ui.Button()">@Html.Icon("calendar-plus", 16) Tạo suất chiếu</button>
+    </div>
+
+    <div class="mb-5 flex flex-wrap gap-3">
+        <input type="date" id="filter-date" value="@Fmt.Iso(Model.Date)" class="@Ui.Input("w-44")" />
+        <select id="filter-cinema" class="@Ui.Select("w-56")">
+            <option value="">Tất cả rạp</option>
+            @foreach (var c in Model.Cinemas)
+            {
+                <option value="@c.Id" selected="@(Model.CinemaId == c.Id)">@c.Name</option>
+            }
+        </select>
+    </div>
+
+    <div data-page-messages>
+        @if (ViewBag.Error != null)
+        {
+            <div class="mb-4" data-page-error><div class="@Ui.ErrorNote">@ViewBag.Error</div></div>
+        }
+        @if (ViewBag.Notice != null)
+        {
+            <p class="mb-4 text-[13px] font-medium text-mint-400">@ViewBag.Notice</p>
+        }
+    </div>
+
+    <div id="showtime-list">
+        <partial name="_ShowtimeList" model="Model.Showtimes" />
+    </div>
+
+    <partial name="_CreateShowtime" model="Model.Form" />
+
+    <partial name="_CancelShowtime" model="new CancelShowtimeViewModel { FilterDate = Model.Date, FilterCinemaId = Model.CinemaId }" />
+
+    @Html.AntiForgeryToken()
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/admin-showtimes.js" asp-append-version="true"></script>
+    @if (Model.OpenCreate)
+    {
+        <script>
+            $(function () { CB.openModal('#create-showtime-modal'); });
+        </script>
+    }
+}

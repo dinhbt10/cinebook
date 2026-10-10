@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="@(Context.Request.Cookies["theme"] == "light" ? "light" : "dark")">
+<head>
+    <partial name="_Head" />
+</head>
+<body>
+    @RenderBody()
+</body>
+</html>

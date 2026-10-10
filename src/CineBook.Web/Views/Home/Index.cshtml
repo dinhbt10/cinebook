@@ -1,0 +1,307 @@
+@model HomeViewModel
+@{
+    var steps = new[]
+    {
+        new { Icon = "mouse-pointer-click", Title = "Chọn ghế", Text = "Sơ đồ ghế cập nhật liên tục, thấy ngay ghế người khác vừa giữ." },
+        new { Icon = "timer", Title = "Giữ ghế 8 phút", Text = "Ghế được khoá riêng cho bạn, đồng hồ đếm ngược hiện ngay trên màn hình." },
+        new { Icon = "qr-code", Title = "Nhận vé QR", Text = "Thanh toán xong là có mã QR, đưa nhân viên quét ở cửa phòng chiếu." },
+    };
+}
+<div>
+    @if (ViewBag.Notice != null)
+    {
+        <div role="alert" class="mx-auto max-w-6xl px-4 pt-4" data-notice>
+            <div class="flex items-start gap-3 rounded-xl border border-velvet-500/35 bg-velvet-950 px-4 py-3 text-[13px] text-velvet-400">
+                @Html.Icon("timer", 15, "mt-0.5 shrink-0")
+                <span class="flex-1">@ViewBag.Notice</span>
+                <button type="button" data-dismiss="[data-notice]" aria-label="Đóng thông báo" class="shrink-0 opacity-70 hover:opacity-100">
+                    @Html.Icon("x", 15)
+                </button>
+            </div>
+        </div>
+    }
+
+    <section class="on-dark relative isolate overflow-hidden border-b border-ink-800">
+        @if (Model.Spotlight.Count > 0)
+        {
+            for (var index = 0; index < Model.Spotlight.Count; index++)
+            {
+                var featured = Model.Spotlight[index];
+                var genres = featured.Genres.ToList();
+                <div data-hero-slide="@index" class="@(index == 0 ? "contents" : "hidden")">
+                    <div class="absolute inset-0 -z-20 animate-drift">
+                        <partial name="_Backdrop" model='new PosterModel { Title = featured.Title, Url = featured.BackdropUrl }' />
+                    </div>
+                    <div class="absolute inset-0 -z-10 scrim-b"></div>
+                    <div class="absolute inset-0 -z-10 hidden scrim-l md:block"></div>
+                    <div class="absolute inset-0 -z-10 grain opacity-30"></div>
+
+                    <div class="relative mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-[240px_1fr] md:py-20">
+                        <a asp-controller="Movies" asp-action="Details" asp-route-id="@featured.Id"
+                           class="mx-auto w-40 overflow-hidden rounded-2xl border border-ink-700/80 shadow-2xl shadow-ink-950 md:mx-0 md:w-full">
+                            <div class="aspect-[2/3] w-full">
+                                <partial name="_Poster" model='new PosterModel { Title = featured.Title, Url = featured.PosterUrl, Eager = true }' />
+                            </div>
+                        </a>
+
+                        <div class="flex animate-rise flex-col justify-center gap-5 text-center md:text-left">
+                            <span class="mx-auto inline-flex w-fit items-center gap-1.5 rounded-full border border-brand-600/40 bg-brand-950/80 px-3 py-1 text-[12px] font-medium text-brand-400 backdrop-blur md:mx-0">
+                                @Html.Icon("sparkles", 12) Phim nổi bật tuần này
+                            </span>
+
+                            <h1 class="font-display text-4xl font-extrabold leading-[1.05] md:text-6xl">@featured.Title</h1>
+
+                            @if (genres.Count > 0)
+                            {
+                                <p class="text-sm text-muted">@string.Join(" · ", genres)</p>
+                            }
+
+                            <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] text-muted md:justify-start">
+                                <span class="flex items-center gap-1.5">@Html.Icon("clock", 14)@featured.DurationMinutes phút</span>
+                                <span class="flex items-center gap-1.5">@Html.Icon("calendar-days", 14)Khởi chiếu @Fmt.Date(featured.ReleaseDate)</span>
+                                <span title="@Fmt.Label(Fmt.AgeRatingLabel, featured.AgeRating)"
+                                      class="rounded-md border border-ink-600 bg-ink-900/60 px-2 py-0.5 font-medium backdrop-blur">@featured.AgeRating</span>
+                            </div>
+
+                            <div class="flex flex-wrap justify-center gap-3 md:justify-start">
+                                <a asp-controller="Movies" asp-action="Details" asp-route-id="@featured.Id" class="@Ui.Button("primary", "lg")">
+                                    @Html.Icon("ticket", 16) Đặt vé ngay
+                                </a>
+                                @if (!string.IsNullOrEmpty(featured.TrailerUrl))
+                                {
+                                    <button type="button" data-trailer="@featured.TrailerUrl" data-title="@featured.Title" class="@Ui.Button("secondary", "lg")">
+                                        @Html.Icon("play", 15, null, true) Xem trailer
+                                    </button>
+                                }
+                            </div>
+
+                            @if (Model.Spotlight.Count > 1)
+                            {
+                                <div class="mt-1 flex items-center justify-center gap-2 md:justify-start">
+                                    @for (var i = 0; i < Model.Spotlight.Count; i++)
+                                    {
+                                        <button type="button" data-hero-dot="@i" aria-label="Xem @Model.Spotlight[i].Title" aria-current="@(i == index ? "true" : "false")"
+                                                class="h-1.5 rounded-full transition-all duration-300 @(i == index ? "w-8 bg-brand-500" : "w-4 bg-ink-600 hover:bg-ink-500")"></button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="mx-auto grid max-w-6xl gap-8 px-4 py-16 md:grid-cols-[240px_1fr]">
+                <div class="skeleton rounded-lg mx-auto aspect-[2/3] w-40 rounded-2xl md:mx-0 md:w-full"></div>
+                <div class="flex flex-col justify-center gap-4">
+                    <div class="skeleton rounded-lg h-5 w-44"></div>
+                    <div class="skeleton rounded-lg h-12 w-3/4"></div>
+                    <div class="skeleton rounded-lg h-4 w-1/2"></div>
+                    <div class="skeleton rounded-lg h-11 w-40 rounded-xl"></div>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="border-b border-ink-800 bg-ink-900/60">
+        <div class="mx-auto grid max-w-6xl gap-6 px-4 py-7 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach (var stat in new[]
+            {
+                new { Icon = "map-pin", Value = Model.CinemaCount.ToString(), Label = "Rạp trên toàn quốc" },
+                new { Icon = "calendar-days", Value = Model.TodayShowtimes.Count.ToString(), Label = "Suất chiếu hôm nay" },
+                new { Icon = "timer", Value = "8 phút", Label = "Thời gian giữ ghế cho bạn" },
+                new { Icon = "qr-code", Value = "Vé QR", Label = "Nhận vé ngay sau thanh toán" },
+            })
+            {
+                <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink-800 text-brand-500">@Html.Icon(stat.Icon, 17)</span>
+                    <div class="min-w-0">
+                        <p class="font-display text-lg font-extrabold leading-none">@stat.Value</p>
+                        <p class="mt-1 truncate text-[12px] text-faint">@stat.Label</p>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="mx-auto max-w-6xl px-4 py-14">
+        <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div class="min-w-0">
+                <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                    <span class="h-px w-6 bg-brand-600/70"></span>Lịch chiếu
+                </p>
+                <h2 class="font-display text-2xl font-extrabold md:text-[28px]" data-tab-title>Phim đang chiếu</h2>
+                <p class="mt-1.5 max-w-xl text-sm text-faint" data-tab-description>Chọn phim, chọn ghế và thanh toán trong vài phút.</p>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" data-tab="NowShowing"
+                        class="rounded-full px-4 py-2 text-sm transition-colors bg-brand-500 font-semibold text-on-brand">Đang chiếu</button>
+                <button type="button" data-tab="ComingSoon"
+                        class="rounded-full px-4 py-2 text-sm transition-colors border border-ink-700 text-muted hover:border-ink-600 hover:text-cream">Sắp chiếu</button>
+            </div>
+        </div>
+
+        <div id="movie-grid">
+            <partial name="_MovieGrid" model="Model.NowShowing" />
+        </div>
+
+        <div class="mt-9 flex justify-center">
+            <a asp-controller="Movies" asp-action="Index" class="@Ui.Button("secondary")">Xem toàn bộ phim @Html.Icon("arrow-right", 15)</a>
+        </div>
+    </section>
+
+    @if (Model.TodayShowtimes.Count > 0)
+    {
+        <section class="border-y border-ink-800 bg-ink-900/60">
+            <div class="mx-auto max-w-6xl px-4 py-14">
+                <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                    <div class="min-w-0">
+                        <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                            <span class="h-px w-6 bg-brand-600/70"></span>Hôm nay
+                        </p>
+                        <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Suất chiếu gần nhất</h2>
+                        <p class="mt-1.5 max-w-xl text-sm text-faint">Còn ghế trống, đặt là xem.</p>
+                    </div>
+                </div>
+                <div class="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
+                    @foreach (var s in Model.TodayShowtimes.Take(12))
+                    {
+                        <a asp-controller="Booking" asp-action="Index" asp-route-id="@s.Id"
+                           class="lift group flex w-64 shrink-0 flex-col gap-3 rounded-2xl border border-ink-700 bg-ink-850 p-4
+                                  hover:border-brand-600/60">
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="font-display text-2xl font-extrabold tabular text-brand-400">@Fmt.Time(s.StartsAtUtc)</span>
+                                <span class="@Ui.Badge(s.RoomType == "Imax" ? "brand" : "outline")">@Fmt.Label(Fmt.RoomTypeLabel, s.RoomType)</span>
+                            </div>
+                            <p class="line-clamp-2 text-sm font-semibold leading-snug transition-colors group-hover:text-brand-400">@s.MovieTitle</p>
+                            <p class="flex items-center gap-1.5 text-[12px] text-faint">
+                                @Html.Icon("map-pin", 12, "shrink-0")
+                                <span class="truncate">@s.CinemaName · @s.RoomName</span>
+                            </p>
+                            <div class="mt-auto flex items-center justify-between border-t border-ink-700 pt-3 text-[12px]">
+                                <span class="text-faint">@s.AvailableSeats/@s.TotalSeats ghế trống</span>
+                                <span class="font-semibold text-cream tabular">từ @Fmt.Money(s.FromPrice)</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+
+    @if (Model.Promotions.Count > 0)
+    {
+        <section class="mx-auto max-w-6xl px-4 py-14">
+            <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                <div class="min-w-0">
+                    <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                        <span class="h-px w-6 bg-brand-600/70"></span>Ưu đãi
+                    </p>
+                    <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Mã giảm giá đang chạy</h2>
+                    <p class="mt-1.5 max-w-xl text-sm text-faint">Nhập mã ở bước bắp nước khi đặt vé.</p>
+                </div>
+                <a asp-controller="Promotions" asp-action="Index" class="text-[13px] text-brand-400 hover:underline">Xem tất cả</a>
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+                @foreach (var p in Model.Promotions.Take(2))
+                {
+                    <div class="lift surface ticket-edge flex items-stretch overflow-hidden">
+                        <div class="flex w-16 shrink-0 items-center justify-center bg-brand-950 text-brand-400">
+                            @Html.Icon("tag", 22)
+                        </div>
+                        <div class="dashed-cut w-px shrink-0 bg-transparent"></div>
+                        <div class="min-w-0 flex-1 p-5">
+                            <p class="font-display text-lg font-bold">@p.Name</p>
+                            <p class="mt-1 text-[13px] text-faint">@(p.DiscountType == "Percentage"
+                                ? $"Giảm {p.Value:0.##}%" + (p.MaxDiscount != null && p.MaxDiscount != 0 ? $", tối đa {Fmt.Money(p.MaxDiscount.Value)}" : "")
+                                : $"Giảm {Fmt.Money(p.Value)}")@(p.MinOrderAmount > 0 ? $" · đơn từ {Fmt.Money(p.MinOrderAmount)}" : "")</p>
+                            <code class="mt-3 inline-block rounded-lg border border-dashed border-brand-600/50 bg-brand-950 px-3 py-1
+                                         font-mono text-[13px] font-bold tracking-wider text-brand-400">@p.Code</code>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="border-t border-ink-800 bg-ink-900/60">
+        <div class="mx-auto max-w-6xl px-4 py-14">
+            <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                <div class="min-w-0">
+                    <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                        <span class="h-px w-6 bg-brand-600/70"></span>Cách hoạt động
+                    </p>
+                    <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Đặt vé trong ba bước</h2>
+                </div>
+            </div>
+            <ol class="grid gap-5 md:grid-cols-3">
+                @for (var i = 0; i < steps.Length; i++)
+                {
+                    <li class="surface relative overflow-hidden p-6">
+                        <span aria-hidden="true"
+                              class="absolute -right-2 -top-4 font-display text-[76px] font-extrabold leading-none text-ink-800">@(i + 1)</span>
+                        <div class="relative">
+                            <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-950 text-brand-400">
+                                @Html.Icon(steps[i].Icon, 20)
+                            </div>
+                            <p class="font-display text-lg font-bold">@steps[i].Title</p>
+                            <p class="mt-1.5 text-[13px] leading-relaxed text-faint">@steps[i].Text</p>
+                        </div>
+                    </li>
+                }
+            </ol>
+        </div>
+    </section>
+
+    <partial name="_TrailerModal" />
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            var slides = $('[data-hero-slide]');
+            var current = 0;
+
+            function show(index) {
+                current = index;
+                slides.each(function (i) {
+                    $(this).toggleClass('contents', i === index).toggleClass('hidden', i !== index);
+                });
+            }
+
+            $(document).on('click', '[data-hero-dot]', function () {
+                show(Number($(this).data('hero-dot')));
+            });
+
+            if (slides.length > 1) {
+                setInterval(function () { show((current + 1) % slides.length); }, 7000);
+            }
+
+            var tabs = {
+                NowShowing: { title: 'Phim đang chiếu', description: 'Chọn phim, chọn ghế và thanh toán trong vài phút.' },
+                ComingSoon: { title: 'Phim sắp chiếu', description: 'Những phim sắp ra rạp — đặt lịch để không bỏ lỡ suất đầu tiên.' }
+            };
+            var activeTab = 'brand-500 font-semibold text-on-brand bg-brand-500';
+            var idleTab = 'border border-ink-700 text-muted hover:border-ink-600 hover:text-cream';
+
+            $('[data-tab]').on('click', function () {
+                var key = $(this).data('tab');
+                $('[data-tab]').each(function () {
+                    var on = $(this).data('tab') === key;
+                    $(this).removeClass(activeTab + ' ' + idleTab).addClass(on ? 'bg-brand-500 font-semibold text-on-brand' : idleTab);
+                });
+                $('[data-tab-title]').text(tabs[key].title);
+                $('[data-tab-description]').text(tabs[key].description);
+
+                $.ajax({
+                    url: '/Home/MovieGrid',
+                    data: { status: key },
+                    success: function (response) {
+                        $('#movie-grid').html(response);
+                    }
+                });
+            });
+        });
+    </script>
+}

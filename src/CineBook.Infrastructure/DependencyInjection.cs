@@ -36,8 +36,6 @@ public static class DependencyInjection
         services.AddSingleton<IQrSigner, HmacQrSigner>();
         services.AddSingleton<IEmailSender, LoggingEmailSender>();
 
-        // Một interface, hai cài đặt — chọn cổng nào là việc của cấu hình và của khách,
-        // tầng Application không biết cổng nào đang chạy (nguyên lý đảo ngược phụ thuộc).
         services.AddHttpClient();
         services.AddSingleton<MockPaymentGateway>();
         services.AddSingleton<VnPayGateway>();

@@ -1,0 +1,50 @@
+@using System.Globalization
+@model VoucherDto
+@{
+    var v = Model;
+    var canSave = User.Identity?.IsAuthenticated == true;
+    var discount = v.DiscountType == "Percentage"
+        ? "Giảm " + v.Value.ToString("0.##", CultureInfo.InvariantCulture) + "%"
+          + (v.MaxDiscount != null && v.MaxDiscount != 0 ? ", tối đa " + Fmt.Money(v.MaxDiscount.Value) : "")
+        : "Giảm " + Fmt.Money(v.Value);
+    var label = v.Saved ? "Bỏ khỏi kho" : "Lưu vào kho";
+}
+<div class="lift surface flex flex-col overflow-hidden@(v.Saved ? " border-brand-600/45" : "")">
+    <div class="relative flex items-start gap-4 p-5">
+        <div class="absolute inset-0 -z-10 screen-glow opacity-60"></div>
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl @(v.Saved ? "bg-brand-500 text-on-brand" : "bg-brand-950 text-brand-500")">
+            @Html.Icon("tag", 19)
+        </div>
+        <div class="min-w-0 flex-1">
+            <h3 class="font-display text-lg font-bold leading-snug">@v.Name</h3>
+            <p class="mt-1 text-[13px] text-faint">@discount</p>
+        </div>
+        @if (canSave)
+        {
+            <button type="button" data-voucher-toggle="@v.Id" data-saved="@(v.Saved ? "true" : "false")" title="@label" aria-label="@label"
+                    class="shrink-0 rounded-lg border p-2 transition-colors @(v.Saved ? "border-brand-600/45 bg-brand-950 text-brand-500 hover:border-velvet-500 hover:text-velvet-500" : "border-ink-600 text-faint hover:border-brand-500 hover:text-brand-500")">
+                @Html.Icon(v.Saved ? "check" : "bookmark-plus", 15)
+            </button>
+        }
+    </div>
+
+    <div class="relative flex items-center">
+        <span class="h-4 w-4 shrink-0 -translate-x-1/2 rounded-full bg-ink-950"></span>
+        <span class="dashed-cut h-px flex-1"></span>
+        <span class="h-4 w-4 shrink-0 translate-x-1/2 rounded-full bg-ink-950"></span>
+    </div>
+
+    <div class="flex flex-1 flex-col gap-3 p-5">
+        <button type="button" data-copy="@v.Code"
+                class="group flex items-center justify-between gap-3 rounded-lg border border-dashed border-brand-600/50
+                       bg-brand-950 px-3.5 py-2 transition-colors hover:border-brand-500">
+            <code class="font-mono text-sm font-bold tracking-[0.12em] text-brand-500">@v.Code</code>
+            <span class="flex items-center gap-1 text-[11px] text-faint transition-colors group-hover:text-brand-500">@Html.Icon("copy", 12) <!---->Chép mã</span>
+        </button>
+
+        <div class="mt-auto text-[12px] text-faint">
+            <p>Đơn tối thiểu <!---->@Fmt.Money(v.MinOrderAmount)</p>
+            <p>Hạn dùng đến <!---->@Fmt.FullDateTime(v.EndsAtUtc)</p>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,6 @@
+<div class="mx-auto max-w-md px-4 py-20 text-center">
+    @Html.Icon("ticket", 40, "mx-auto mb-4 text-brand-500")
+    <h1 class="mb-2 text-2xl font-bold">Đăng nhập để đặt vé</h1>
+    <p class="mb-6 text-sm text-faint">Bạn cần đăng nhập trước khi chọn ghế cho suất chiếu này.</p>
+    <a asp-controller="Account" asp-action="Login" asp-route-next="@Url.Action("Index", "Booking", new { id = ViewBag.ShowtimeId })" class="@Ui.Button()">Đăng nhập</a>
+</div>

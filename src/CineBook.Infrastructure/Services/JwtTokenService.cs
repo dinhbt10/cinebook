@@ -32,7 +32,6 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
             new(ClaimTypes.Role, user.Role.ToString())
         };
 
-        // BR-19: nhân viên và quản lý rạp mang theo mã rạp mình phụ trách.
         if (user.CinemaId is { } cinemaId)
             claims.Add(new Claim("cinema_id", cinemaId.ToString()));
 

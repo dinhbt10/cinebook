@@ -1,0 +1,106 @@
+@model MovieFormViewModel
+@{
+    var editing = Model.Id != null;
+    var genres = (List<CineBook.Domain.Entities.Genre>)ViewBag.Genres;
+}
+<h3 class="mb-5 text-lg font-bold">@(editing ? "Sửa thông tin phim" : "Thêm phim mới")</h3>
+<form asp-action="@(editing ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data"
+      data-movie-form class="flex flex-col gap-4">
+    <partial name="_FormError" />
+    <div class="grid gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Tên phim</span>
+            <input asp-for="Title" class="@Ui.Input()" />
+            <span asp-validation-for="Title" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Tên gốc</span>
+            <input asp-for="OriginalTitle" class="@Ui.Input()" />
+            <span asp-validation-for="OriginalTitle" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Thời lượng (phút)</span>
+            <input asp-for="DurationMinutes" type="number" min="1" class="@Ui.Input()" />
+            <span asp-validation-for="DurationMinutes" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Ngày khởi chiếu</span>
+            <input asp-for="ReleaseDate" class="@Ui.Input()" />
+            <span asp-validation-for="ReleaseDate" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Nhãn phân loại tuổi</span>
+            <select asp-for="AgeRating" asp-items="(IEnumerable<SelectListItem>)ViewBag.AgeRatings" class="@Ui.Select()"></select>
+            <span asp-validation-for="AgeRating" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Trạng thái</span>
+            <select asp-for="Status" asp-items="(IEnumerable<SelectListItem>)ViewBag.Statuses" class="@Ui.Select()"></select>
+            <span asp-validation-for="Status" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Ngày kết thúc chiếu</span>
+            <input asp-for="EndDate" class="@Ui.Input("peer")" />
+            <span asp-validation-for="EndDate" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Không bắt buộc</span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Quốc gia</span>
+            <input asp-for="Country" class="@Ui.Input()" />
+            <span asp-validation-for="Country" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Đạo diễn</span>
+            <input asp-for="Director" class="@Ui.Input()" />
+            <span asp-validation-for="Director" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Ngôn ngữ</span>
+            <input asp-for="Language" class="@Ui.Input()" />
+            <span asp-validation-for="Language" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+    </div>
+    <label class="flex flex-col gap-1.5">
+        <span class="@Ui.Label">Diễn viên</span>
+        <input asp-for="Cast" class="@Ui.Input()" />
+    </label>
+    <fieldset class="flex flex-col gap-1.5">
+        <legend class="mb-1.5 text-[13px] font-medium text-muted">Thể loại</legend>
+        <div class="flex flex-wrap gap-2">
+            @foreach (var g in genres)
+            {
+                <label class="flex items-center gap-1.5 rounded-lg border border-ink-700 px-2.5 py-1.5 text-[13px]">
+                    <input type="checkbox" name="GenreIds" value="@g.Id" checked="@Model.GenreIds.Contains(g.Id)" class="accent-brand-500" />@g.Name</label>
+            }
+        </div>
+    </fieldset>
+    <label class="flex flex-col gap-1.5">
+        <span class="@Ui.Label">Ảnh poster</span>
+        <span class="flex flex-col gap-2 sm:flex-row">
+            <input asp-for="PosterUrl" placeholder="https://…" class="@Ui.Input("min-w-0 sm:flex-1")" />
+            <input asp-for="PosterFile" accept="image/*" title="Tải ảnh poster lên"
+                   class="@Ui.Input("py-[7px] sm:w-64 sm:shrink-0 file:mr-3 file:rounded-lg file:border-0 file:bg-ink-800 file:px-3 file:py-1 file:text-[13px] file:leading-[18px] file:font-medium file:text-cream hover:file:bg-ink-700")" />
+        </span>
+        <span asp-validation-for="PosterFile" class="@Ui.FieldError empty:hidden peer"></span>
+        <span class="@Ui.Hint peer-[.field-validation-error]:hidden">Dán đường dẫn ảnh</span>
+    </label>
+    <label class="flex flex-col gap-1.5">
+        <span class="@Ui.Label">Ảnh nền</span>
+        <input asp-for="BackdropUrl" placeholder="https://…" class="@Ui.Input()" />
+        <span class="@Ui.Hint">Dán đường dẫn ảnh ngang, hiện ở đầu trang chi tiết phim</span>
+    </label>
+    <label class="flex flex-col gap-1.5">
+        <span class="@Ui.Label">Trailer</span>
+        <input asp-for="TrailerUrl" placeholder="https://www.youtube.com/watch?v=…" class="@Ui.Input()" />
+        <span class="@Ui.Hint">Đường dẫn YouTube — hiện nút phát trên poster</span>
+    </label>
+    <div class="flex flex-col gap-1.5">
+        <span class="@Ui.Label">Mô tả</span>
+        <textarea asp-for="Description" class="@Ui.Textarea()"></textarea>
+    </div>
+
+    <div class="flex justify-end gap-2 pt-1">
+        <button type="button" data-modal-close class="@Ui.Button("ghost")">Hủy</button>
+        <button type="submit" class="@Ui.Button()">@(editing ? "Lưu thay đổi" : "Thêm phim")</button>
+    </div>
+</form>

@@ -1,0 +1,25 @@
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <div class="hidden items-center gap-2 sm:flex">
+        <a asp-controller="Tickets" asp-action="Index" asp-area=""
+           class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-ink-800 hover:text-cream">
+            @Html.Icon("ticket", 15) Vé của tôi
+        </a>
+        <div class="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-850 py-1.5 pl-2.5 pr-1.5">
+            <span class="max-w-28 truncate text-[13px] text-muted">@User.Identity.Name</span>
+            <form asp-controller="Account" asp-action="Logout" asp-area="" method="post" class="flex">
+                <button type="submit" title="Đăng xuất"
+                        class="rounded-md p-1.5 text-faint transition-colors hover:bg-ink-700 hover:text-velvet-400">
+                    @Html.Icon("log-out", 14)
+                </button>
+            </form>
+        </div>
+    </div>
+}
+else
+{
+    <div class="hidden items-center gap-2 sm:flex">
+        <a asp-controller="Account" asp-action="Login" asp-area="" class="@Ui.Button("ghost", "sm")">Đăng nhập</a>
+        <a asp-controller="Account" asp-action="Register" asp-area="" class="@Ui.Button("primary", "sm")">Đăng ký</a>
+    </div>
+}

@@ -1,9 +1,5 @@
 namespace CineBook.Application.Common;
 
-/// <summary>
-/// Kết quả của một thao tác nghiệp vụ. Dùng thay cho việc ném ngoại lệ,
-/// để lỗi nghiệp vụ (ghế đã có người lấy, hết hạn giữ ghế…) không lẫn với lỗi hệ thống.
-/// </summary>
 public class Result
 {
     public bool Succeeded { get; init; }

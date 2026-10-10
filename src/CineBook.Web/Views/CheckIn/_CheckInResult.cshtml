@@ -1,0 +1,76 @@
+@model CheckInResponse
+@{
+    var verdicts = new Dictionary<string, (string Label, string Tone)>
+    {
+        ["CHO_VAO"] = ("CHO VÀO", "ok"),
+        ["DUNG_LAI"] = ("VÉ ĐÃ DÙNG", "bad"),
+        ["VE_GIA"] = ("VÉ KHÔNG HỢP LỆ", "bad"),
+        ["DA_HUY"] = ("VÉ ĐÃ HỦY", "bad"),
+        ["SAI_RAP"] = ("SAI RẠP", "bad"),
+        ["CHUA_THANH_TOAN"] = ("CHƯA THANH TOÁN", "bad"),
+        ["QUA_SOM"] = ("CHƯA TỚI GIỜ VÀO", "warn"),
+        ["QUA_MUON"] = ("QUÁ GIỜ VÀO CỬA", "warn"),
+    };
+    var verdict = verdicts.TryGetValue(Model.Verdict, out var v) ? v : (Model.Verdict, "bad");
+    var tone = verdict.Item2;
+}
+<div class="@HtmlExtensions.Css("mb-6 animate-rise rounded-2xl border p-6 text-center",
+    "border-mint-500/45 bg-mint-950", tone == "ok",
+    "border-brand-600/45 bg-brand-950", tone == "warn",
+    "border-velvet-500/45 bg-velvet-950", tone == "bad")">
+    @if (tone == "ok")
+    {
+        @Html.Icon("check-circle-2", 46, "mx-auto text-mint-400")
+    }
+    else if (tone == "warn")
+    {
+        @Html.Icon("alert-triangle", 46, "mx-auto text-brand-400")
+    }
+    else
+    {
+        @Html.Icon("x-circle", 46, "mx-auto text-velvet-400")
+    }
+
+    <p class="@HtmlExtensions.Css("mt-3 font-display text-2xl font-extrabold tracking-tight", tone == "ok" ? "text-mint-400" : tone == "warn" ? "text-brand-400" : "text-velvet-400")">@verdict.Item1</p>
+    <p class="mt-1.5 text-sm text-cream">@Model.Message</p>
+
+    @if (!string.IsNullOrEmpty(Model.TicketCode))
+    {
+        <dl class="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-left text-[13px]">
+            <div>
+                <dt class="text-[11px] uppercase tracking-wide text-faint">Mã vé</dt>
+                <dd class="mt-0.5 font-medium text-cream font-mono">@Model.TicketCode</dd>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.SeatLabel))
+            {
+                <div>
+                    <dt class="text-[11px] uppercase tracking-wide text-faint">Ghế</dt>
+                    <dd class="mt-0.5 font-medium text-cream font-mono">@Model.SeatLabel</dd>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(Model.MovieTitle))
+            {
+                <div>
+                    <dt class="text-[11px] uppercase tracking-wide text-faint">Phim</dt>
+                    <dd class="mt-0.5 font-medium text-cream">@Model.MovieTitle</dd>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(Model.RoomName))
+            {
+                <div>
+                    <dt class="text-[11px] uppercase tracking-wide text-faint">Phòng</dt>
+                    <dd class="mt-0.5 font-medium text-cream">@Model.RoomName</dd>
+                </div>
+            }
+            @if (Model.StartsAtUtc != null)
+            {
+                <div>
+                    <dt class="text-[11px] uppercase tracking-wide text-faint">Suất chiếu</dt>
+                    <dd class="mt-0.5 font-medium text-cream">@Fmt.FullDateTime(Model.StartsAtUtc.Value)</dd>
+                </div>
+            }
+        </dl>
+    }
+
+    <button type="button" data-checkin-next class="@Ui.Button("secondary", "md", "mt-5")">Quét vé tiếp theo</button>
+</div>

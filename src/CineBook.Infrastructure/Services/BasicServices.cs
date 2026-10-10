@@ -28,10 +28,6 @@ public class QrOptions
     public string Secret { get; set; } = "doi-chuoi-nay-trong-cau-hinh-that-cua-ban";
 }
 
-/// <summary>
-/// BR-11: nội dung mã QR có dạng "MÃ_VÉ.CHỮ_KÝ", chữ ký là HMAC-SHA256 của mã vé.
-/// Không có khoá bí mật thì không tạo được mã QR hợp lệ, nên vé không thể làm giả.
-/// </summary>
 public class HmacQrSigner(IOptions<QrOptions> options) : IQrSigner
 {
     private readonly byte[] _key = Encoding.UTF8.GetBytes(options.Value.Secret);
@@ -66,10 +62,6 @@ public class HmacQrSigner(IOptions<QrOptions> options) : IQrSigner
     }
 }
 
-/// <summary>
-/// Bản gửi mail cho môi trường học tập: ghi ra log thay vì gửi thật,
-/// nên demo được toàn bộ luồng mà không cần dịch vụ bên ngoài.
-/// </summary>
 public class LoggingEmailSender(ILogger<LoggingEmailSender> logger) : IEmailSender
 {
     public Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default)

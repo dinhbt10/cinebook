@@ -5,10 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineBook.Application.Services;
 
-/// <summary>
-/// Báo cáo cho trang quản trị. Tỷ lệ lấp đầy (occupancy) là chỉ số quan trọng
-/// nhất của một rạp mà bản mô tả nghiệp vụ ban đầu chưa có.
-/// </summary>
 public class ReportService(IAppDbContext db, IDateTimeProvider clock)
 {
     public async Task<DashboardDto> GetDashboardAsync(Guid? cinemaId, CancellationToken ct = default)
@@ -16,8 +12,6 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
         var (todayFrom, todayTo) = LocalDayRangeUtc(DateOnly.FromDateTime(LocalNow()));
         var monthFrom = LocalDayRangeUtc(new DateOnly(LocalNow().Year, LocalNow().Month, 1)).from;
 
-        // Cùng định nghĩa doanh thu với biểu đồ theo ngày (chỉ đơn Paid): trước đây ô này cộng
-        // cả đơn đã hoàn tiền với đủ Total, nên hai con số trên cùng một trang không khớp nhau.
         var paid = db.Bookings.AsNoTracking()
             .Where(b => b.Status == BookingStatus.Paid && b.PaidAtUtc != null);
 
@@ -30,7 +24,6 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
         var revenueMonth = await paid.Where(b => b.PaidAtUtc >= monthFrom)
             .SumAsync(b => (decimal?)b.Total, ct) ?? 0m;
         var bookingsToday = await today.CountAsync(ct);
-        // Đếm vé của chính các đơn trên, để theo đúng rạp (BR-19) và bỏ vé đã hủy.
         var ticketsToday = await today.SelectMany(b => b.Tickets)
             .CountAsync(t => t.Status != TicketStatus.Cancelled, ct);
 
@@ -85,8 +78,6 @@ public class ReportService(IAppDbContext db, IDateTimeProvider clock)
             .Where(s => !s.IsCancelled && s.StartsAtUtc >= fromUtc && s.StartsAtUtc < toUtc);
         if (cinemaId is { } cid) q = q.Where(s => s.Room.CinemaId == cid);
 
-        // Doanh thu lấy từ đơn đã thanh toán (tiền ghế trừ giảm giá) — cùng cách tính với
-        // biểu đồ theo ngày. Cộng giá niêm yết của ghế Sold sẽ bỏ qua voucher đã trừ.
         var rows = await q.Select(s => new
         {
             s.MovieId,

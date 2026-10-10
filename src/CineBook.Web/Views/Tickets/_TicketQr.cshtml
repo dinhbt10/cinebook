@@ -1,0 +1,31 @@
+@model TicketQrViewModel
+<div class="flex flex-wrap gap-4">
+    @foreach (var item in Model.Tickets)
+    {
+        var t = item.Ticket;
+        <div data-ticket="@t.Code" data-seat="@t.SeatLabel"
+             class="flex flex-col items-center gap-2 rounded-xl border border-ink-700 bg-ink-900 p-4">
+            <div data-qr class="rounded-lg bg-white p-2.5">@Html.Raw(item.Svg)</div>
+            <p class="font-mono text-sm font-bold">@t.SeatLabel</p>
+            <p class="font-mono text-[11px] text-faint">@t.Code</p>
+            @if (t.CheckedInAtUtc != null)
+            {
+                <span class="@Ui.Badge("mint")">Đã vào rạp</span>
+            }
+            <button type="button" data-download class="@Ui.Button("secondary", "sm", "mt-1 w-full")">
+                @Html.Icon("download", 13) Tải vé
+            </button>
+        </div>
+    }
+</div>
+
+<div class="mt-4" data-qr-error style="display:none"><div class="@Ui.ErrorNote"></div></div>
+
+@if (Model.Tickets.Count > 1)
+{
+    <div class="mt-4">
+        <button type="button" data-download-all class="@Ui.Button("secondary", "sm")">
+            @Html.Icon("download", 14) Tải tất cả @Model.Tickets.Count vé
+        </button>
+    </div>
+}

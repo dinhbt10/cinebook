@@ -1,0 +1,196 @@
+@model TicketsPageViewModel
+<div class="mx-auto max-w-3xl px-4 py-10">
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div class="min-w-0">
+            <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                <span class="h-px w-6 bg-brand-600/70"></span>
+                Tài khoản
+            </p>
+            <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Vé của tôi</h2>
+            <p class="mt-1.5 max-w-xl text-sm text-faint">Mở mã QR ở đây khi tới cửa phòng chiếu.</p>
+        </div>
+    </div>
+
+    @if (Model.Bookings.Count == 0)
+    {
+        <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ink-700 px-6 py-14 text-center">
+            <div class="text-ink-500">@Html.Icon("ticket", 40)</div>
+            <div>
+                <p class="font-display text-lg font-bold">Bạn chưa có vé nào</p>
+                <p class="mt-1 max-w-sm text-sm text-faint">Chọn một bộ phim và đặt vé ngay.</p>
+            </div>
+            <a asp-controller="Movies" asp-action="Index"><button type="button" class="@Ui.Button()">Xem phim đang chiếu</button></a>
+        </div>
+    }
+    else
+    {
+        <div class="stagger flex flex-col gap-4">
+            @foreach (var b in Model.Bookings)
+            {
+                var status = Fmt.BookingStatus.TryGetValue(b.Status, out var st) ? st : (b.Status, "outline");
+                var seats = string.Join(", ", b.Seats.Select(s => s.Label));
+                var combos = b.Combos.Any() ? " · " + string.Join(", ", b.Combos.Select(c => c.Name + " ×" + c.Quantity)) : "";
+                <div class="surface overflow-hidden" data-booking-card="@b.Id" data-movie="@b.MovieTitle" data-cinema="@b.CinemaName"
+                     data-room="@b.RoomName" data-starts="@DateTime.SpecifyKind(b.StartsAtUtc, DateTimeKind.Utc).ToString("o")" data-code="@b.Code"
+                     data-seat-count="@b.Seats.Count()" data-total="@b.Total.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                    <div class="flex items-stretch">
+                        <div class="on-dark relative hidden w-16 shrink-0 sm:block" style="background: @MovieArt.Background(b.MovieTitle);">
+                            <span class="absolute inset-0 grain opacity-40" aria-hidden="true"></span>
+                            <span class="absolute inset-0 flex items-center justify-center">
+                                <span class="font-mono text-[10px] font-bold tracking-[0.3em] text-white/80" style="writing-mode: vertical-rl; transform: rotate(180deg);">CINEBOOK</span>
+                            </span>
+                        </div>
+
+                        <span class="dashed-cut hidden w-px shrink-0 sm:block"></span>
+
+                        <div class="flex min-w-0 flex-1 items-start gap-4 p-5">
+                            <div class="min-w-0 flex-1">
+                                <div class="mb-2 flex flex-wrap items-center gap-2">
+                                    <span class="@Ui.Badge(status.Item2)">@status.Item1</span>
+                                    <span class="font-mono text-[12px] text-faint">@b.Code</span>
+                                </div>
+                                <h3 class="font-display text-lg font-bold leading-snug">@b.MovieTitle</h3>
+                                <p class="mt-1.5 flex items-start gap-1.5 text-[13px] text-muted">
+                                    @Html.Icon("map-pin", 13, "mt-0.5 shrink-0 text-faint")
+                                    <span>@b.CinemaName · @b.RoomName · @Fmt.FullDateTime(b.StartsAtUtc)</span>
+                                </p>
+                                <p class="mt-1.5 text-[13px] text-faint">Ghế <b class="font-mono text-cream">@seats</b>@combos</p>
+                                @if (b.CancelReason != null && b.Status != "Paid")
+                                {
+                                    <p class="mt-1.5 text-[12px] text-faint">@b.CancelReason</p>
+                                }
+                                <div class="mt-2" data-card-error style="display:none"><div class="@Ui.ErrorNote"></div></div>
+                            </div>
+
+                            <div class="shrink-0 text-right">
+                                <p class="font-display text-lg font-extrabold text-brand-400 tabular">@Fmt.Money(b.Total)</p>
+                                @if (b.Status == "Pending")
+                                {
+                                    <a asp-controller="Booking" asp-action="Index" asp-route-id="@b.ShowtimeId"
+                                       class="mt-2 inline-block text-[12px] font-medium text-brand-400 hover:underline">Tiếp tục thanh toán</a>
+                                    <button type="button" data-cancel-open="#cancel-dialog-@b.Id"
+                                            class="mt-2 block text-[12px] text-faint transition-colors hover:text-velvet-400">Hủy đặt vé</button>
+                                }
+                                @if (b.Status == "Paid")
+                                {
+                                    <button type="button" data-qr-toggle
+                                            class="mt-2 flex items-center gap-1 text-[12px] text-muted transition-colors hover:text-cream"><span data-qr-label>Xem mã QR</span>@Html.Icon("chevron-down", 13, "transition-transform")</button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (b.Status == "Paid")
+                    {
+                        <div data-qr-panel class="animate-rise border-t border-dashed border-ink-700 bg-ink-900 p-5" style="display:none"></div>
+                    }
+                </div>
+            }
+        </div>
+
+        foreach (var b in Model.Bookings.Where(x => x.Status == "Pending"))
+        {
+            var body = new Microsoft.AspNetCore.Html.HtmlString("<p>Ghế <b class=\"font-mono text-cream\">" +
+                Html.Encode(string.Join(", ", b.Seats.Select(s => s.Label))) +
+                "</b> của đơn <b class=\"font-mono text-cream\">" + Html.Encode(b.Code) +
+                "</b> đang giữ cho bạn sẽ được trả lại ngay cho người khác. Đơn đã hủy thì không khôi phục được.</p>");
+            var error = Model.CancelBookingId == b.Id ? Model.CancelError : null;
+            <partial name="_ConfirmDialog" model="@(new ConfirmDialogModel { Id = "cancel-dialog-" + b.Id, Title = "Hủy đặt vé?", ConfirmLabel = "Hủy đặt vé", CancelLabel = "Quay lại", Form = "#cancel-form-" + b.Id, Body = body, Error = error })" />
+            <form id="cancel-form-@b.Id" asp-action="Cancel" asp-route-id="@b.Id" method="post"></form>
+        }
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/ticket-image.js" asp-append-version="true"></script>
+    <script>
+        $(function () {
+            $('[data-cancel-open]').on('click', function () {
+                var dialog = $(this).attr('data-cancel-open');
+                $(dialog).find('[data-confirm-error]').hide();
+                CB.openModal(dialog);
+            });
+
+            $('[data-modal]').each(function () {
+                if ($(this).find('[data-confirm-error]').text().trim()) CB.openModal(this);
+            });
+
+            function showError($card, message) {
+                $card.data('error', message);
+                var open = $card.find('[data-qr-panel]').is(':visible');
+                $card.find('[data-card-error]').toggle(!!message && !open).children().text(message || '');
+                $card.find('[data-qr-error]').toggle(!!message && open).children().text(message || '');
+            }
+
+            $('[data-qr-toggle]').on('click', function () {
+                var $card = $(this).closest('[data-booking-card]');
+                var $panel = $card.find('[data-qr-panel]');
+                var open = !$panel.is(':visible');
+                $(this).find('[data-qr-label]').text(open ? 'Ẩn vé' : 'Xem mã QR');
+                $(this).children('svg').toggleClass('rotate-180', open);
+                $panel.toggle(open);
+                if (open && !$card.data('loaded')) {
+                    $card.data('loaded', true);
+                    $panel.html('<div class="flex flex-col items-center justify-center gap-3 py-16 text-faint">' +
+                        CB.icon('loader-2', 26, 'animate-spin text-brand-500') + '</div>');
+                    $.ajax({
+                        url: '/Tickets/Qr/' + $card.attr('data-booking-card'),
+                        success: function (response) {
+                            $panel.html(response);
+                            showError($card, $card.data('error'));
+                        },
+                        error: function () { $card.data('loaded', false); }
+                    });
+                }
+                showError($card, $card.data('error'));
+            });
+
+            function bookingOf($card) {
+                return {
+                    movieTitle: $card.attr('data-movie'),
+                    cinemaName: $card.attr('data-cinema'),
+                    roomName: $card.attr('data-room'),
+                    startsAtUtc: $card.attr('data-starts'),
+                    code: $card.attr('data-code'),
+                    seatCount: Number($card.attr('data-seat-count')),
+                    total: Number($card.attr('data-total'))
+                };
+            }
+
+            function download($ticket) {
+                var $card = $ticket.closest('[data-booking-card]');
+                var svg = $ticket.find('[data-qr] svg')[0];
+                if (!svg) {
+                    showError($card, 'Chưa tải xong mã QR, vui lòng thử lại.');
+                    return Promise.resolve();
+                }
+                var booking = bookingOf($card);
+                var ticket = { seatLabel: $ticket.attr('data-seat'), code: $ticket.attr('data-ticket') };
+                var $button = $ticket.find('[data-download]');
+                CB.setLoading($button, true);
+                $card.find('[data-download-all]').prop('disabled', true);
+                showError($card, null);
+                return TicketImage.build(svg, ticket, booking)
+                    .then(function (blob) { TicketImage.save(blob, TicketImage.fileName(booking, ticket)); })
+                    .catch(function () { showError($card, 'Không tạo được ảnh vé trên trình duyệt này.'); })
+                    .then(function () {
+                        CB.setLoading($button, false);
+                        $card.find('[data-download-all]').prop('disabled', false);
+                    });
+            }
+
+            $(document).on('click', '[data-download]', function () {
+                download($(this).closest('[data-ticket]'));
+            });
+
+            $(document).on('click', '[data-download-all]', function () {
+                var tickets = $(this).closest('[data-qr-panel]').find('[data-ticket]').toArray();
+                var chain = Promise.resolve();
+                tickets.forEach(function (el) {
+                    chain = chain.then(function () { return download($(el)); })
+                        .then(function () { return new Promise(function (r) { setTimeout(r, 350); }); });
+                });
+            });
+        });
+    </script>
+}

@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace CineBook.Application.Abstractions;
 
-/// <summary>
-/// Cho phép tầng Application làm việc với cơ sở dữ liệu mà không phụ thuộc
-/// vào lớp DbContext cụ thể ở tầng Infrastructure.
-/// </summary>
 public interface IAppDbContext
 {
     DbSet<User> Users { get; }

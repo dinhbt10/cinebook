@@ -1,10 +1,3 @@
-"""
-Kiểm thử nghiệp vụ đầu-cuối: đăng nhập 4 vai trò, tạo suất chiếu, chặn suất chồng giờ,
-giữ ghế, chống đặt trùng, giới hạn 8 ghế, combo và mã giảm giá, thanh toán qua webhook
-(gửi hai lần để thử chống trùng), sinh vé QR, soát vé, phân quyền và báo cáo.
-
-Chạy:  python3 tests/test_business_flow.py [base_url]
-"""
 import json, urllib.request, urllib.parse, datetime, sys
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5099"

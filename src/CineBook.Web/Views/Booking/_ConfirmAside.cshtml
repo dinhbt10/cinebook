@@ -1,0 +1,64 @@
+@model BookingPageViewModel
+@{
+    var booking = Model.Booking!;
+    var expires = DateTime.SpecifyKind(booking.HoldExpiresAtUtc, DateTimeKind.Utc);
+    var left = Math.Max(0, (int)Math.Floor((expires - DateTime.UtcNow).TotalSeconds));
+    var urgent = left <= 60;
+    var chosen = Model.ChosenSeats();
+    var combos = Model.Combos.Where(c => Model.ComboQuantities.TryGetValue(c.Id, out var q) && q > 0).ToList();
+    var combosTotal = combos.Sum(c => c.Price * Model.ComboQuantities[c.Id]);
+}
+<div data-countdown="@expires.ToString("o")" data-expired-url="@Url.Action("Expired", new { id = Model.SeatMap.ShowtimeId })"
+     class="@HtmlExtensions.Css("flex items-center gap-2 rounded-xl border px-3.5 py-2", urgent ? "border-velvet-500/45 bg-velvet-950" : "border-brand-600/40 bg-brand-950")">
+    @Html.Icon("timer", 15, urgent ? "text-velvet-400" : "text-brand-400")
+    <div class="leading-tight">
+        <p data-countdown-text class="@HtmlExtensions.Css("font-mono text-lg font-bold tabular", urgent ? "text-velvet-400" : "text-brand-400")">@Fmt.Countdown(left)</p>
+        <p class="text-[11px] text-faint">thời gian giữ ghế còn lại</p>
+    </div>
+</div>
+
+<div>
+    <p class="mb-2 text-[13px] font-semibold text-muted">Ghế đã chọn</p>
+    @if (chosen.Count == 0)
+    {
+        <p class="text-[13px] text-faint">Chưa chọn ghế nào</p>
+    }
+    else
+    {
+        <ul class="flex flex-col gap-1.5">
+            @foreach (var s in chosen)
+            {
+                <li class="flex items-center justify-between text-[13px]"><span><b class="font-mono">@s.Label</b><span class="ml-1.5 text-faint">@Fmt.Label(Fmt.SeatTypeLabel, s.SeatType)</span></span><span class="tabular">@Fmt.Money(s.Price)</span></li>
+            }
+        </ul>
+    }
+</div>
+
+@if (combosTotal > 0)
+{
+    <div class="border-t border-ink-700 pt-3">
+        <p class="mb-2 text-[13px] font-semibold text-muted">Bắp nước</p>
+        <ul class="flex flex-col gap-1.5">
+            @foreach (var c in combos)
+            {
+                <li class="flex items-center justify-between gap-3 text-[13px]"><span class="min-w-0 truncate">@c.Name × @Model.ComboQuantities[c.Id]</span><span class="shrink-0 tabular">@Fmt.Money(c.Price * Model.ComboQuantities[c.Id])</span></li>
+            }
+        </ul>
+    </div>
+}
+
+<div class="border-t border-ink-700 pt-3 text-[13px]">
+    <div class="flex items-center justify-between py-0.5"><span class="text-faint">Tiền ghế</span><span class="tabular">@Fmt.Money(booking.SeatsSubtotal)</span></div>
+    @if (booking.ConcessionSubtotal > 0)
+    {
+        <div class="flex items-center justify-between py-0.5"><span class="text-faint">Bắp nước</span><span class="tabular">@Fmt.Money(booking.ConcessionSubtotal)</span></div>
+    }
+    @if (booking.DiscountAmount > 0)
+    {
+        <div class="flex items-center justify-between py-0.5"><span class="text-faint">Giảm giá</span><span class="tabular text-mint-400">@Fmt.Money(-booking.DiscountAmount)</span></div>
+    }
+    <div class="mt-2.5 flex items-center justify-between border-t border-ink-700 pt-2.5">
+        <span class="font-semibold">Tổng thanh toán</span>
+        <span class="font-display text-xl font-extrabold text-brand-400 tabular">@Fmt.Money(booking.Total)</span>
+    </div>
+</div>

@@ -10,7 +10,6 @@ appsettings.Local.json
 .env
 .env.local
 web/node_modules/
-src/CineBook.Api/wwwroot/
 web/dist/
 .DS_Store
 
@@ -18,3 +17,6 @@ web/dist/
 /web/
 
 /docs
+src/CineBook.Web/node_modules/
+src/CineBook.Web/wwwroot/images/posters/*
+!src/CineBook.Web/wwwroot/images/posters/.gitkeep

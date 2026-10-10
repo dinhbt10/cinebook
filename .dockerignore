@@ -2,7 +2,7 @@
 **/obj
 **/node_modules
 web/dist
-src/CineBook.Api/wwwroot
+web
 .git
 .vs
 .vscode

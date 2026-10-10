@@ -12,29 +12,18 @@ public class MockGatewayOptions
     public const string SectionName = "Payment:Mock";
     public string Secret { get; set; } = "mock-gateway-secret";
 
-    /// <summary>Địa chỉ trang thanh toán giả lập do chính API này phục vụ.</summary>
     public string PayPageUrl { get; set; } = "/mock-gateway";
+
+    public bool Enabled { get; set; } = false;
 }
 
-/// <summary>
-/// Cổng thanh toán giả lập. Giữ nguyên mọi đặc tính của cổng thật:
-/// có chữ ký để kiểm tra (BR-07), có mã giao dịch riêng để chống xử lý trùng (BR-08),
-/// và kết quả trả về bằng webhook chứ không phải bằng đường người dùng quay lại.
-///
-/// Nhờ vậy khi demo có thể chủ động bấm gửi webhook hai lần để chứng minh
-/// hệ thống chỉ ghi nhận một lần — điều rất khó làm với cổng thật.
-/// </summary>
 public class MockPaymentGateway(IOptions<MockGatewayOptions> options) : IPaymentGateway
 {
     private readonly MockGatewayOptions _opt = options.Value;
 
     public string Provider => "Mock";
     public string DisplayName => "Cổng giả lập (demo)";
-    // Tạm ẩn cổng giả lập khỏi bước thanh toán vì đã có VNPay. Bỏ comment dòng dưới để bật lại.
-    // Chỉ chặn tạo giao dịch MỚI: cổng vẫn được đăng ký nên đơn cũ trả bằng cổng giả lập
-    // vẫn hoàn tiền được (hủy vé, hủy suất chiếu) và webhook của giao dịch cũ vẫn xử lý được.
-    // public bool IsConfigured => true;
-    public bool IsConfigured => false;
+    public bool IsConfigured => _opt.Enabled;
 
     public IReadOnlyList<PaymentMethod> Methods { get; } =
         [new PaymentMethod("", "Mô phỏng")];
@@ -72,7 +61,6 @@ public class MockPaymentGateway(IOptions<MockGatewayOptions> options) : IPayment
     private static string Get(IDictionary<string, string> d, string key, string fallback) =>
         d.TryGetValue(key, out var v) ? v : fallback;
 
-    /// <summary>Chữ ký tính trên mọi trường trừ chính trường signature, sắp xếp theo tên.</summary>
     public string ComputeSignature(IDictionary<string, string> payload)
     {
         var data = string.Join("&", payload

@@ -18,14 +18,12 @@ public class TicketService(IAppDbContext db, IQrSigner qrSigner)
             .OrderBy(t => t.Seat.RowLabel).ThenBy(t => t.Seat.Number)
             .ToListAsync(ct);
 
-        // Chữ ký QR tính ở phía ứng dụng, không dịch được sang SQL.
         return tickets.Select(t => new TicketDto(
             t.Id, t.Code, qrSigner.BuildPayload(t.Code), t.Seat.Label, t.Status.ToString(),
             t.Booking.Showtime.Movie.Title, t.Booking.Showtime.Room.Cinema.Name,
             t.Booking.Showtime.Room.Name, t.Booking.Showtime.StartsAtUtc, t.CheckedInAtUtc)).ToList();
     }
 
-    /// <summary>Nội dung email vé gửi cho khách sau khi thanh toán thành công.</summary>
     public static string BuildTicketEmail(string movieTitle, string cinemaName, string roomName,
         DateTime startsAtLocal, string bookingCode, IEnumerable<string> seatLabels, decimal total)
     {

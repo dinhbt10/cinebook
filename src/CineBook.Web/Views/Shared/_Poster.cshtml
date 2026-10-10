@@ -1,0 +1,36 @@
+@model PosterModel
+@if (!MovieArt.IsPlaceholder(Model.Url))
+{
+    <img src="@Model.Url" alt="@Model.Title" loading="@(Model.Eager ? "eager" : "lazy")"
+         class="h-full w-full object-cover @Model.CssClass" />
+}
+else
+{
+    var art = MovieArt.For(Model.Title);
+    var beamId = "beam-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    <div class="on-dark relative h-full w-full overflow-hidden @Model.CssClass"
+         style="background: @MovieArt.Background(Model.Title)"
+         role="img" aria-label="@Model.Title">
+        <span aria-hidden="true"
+              class="pointer-events-none absolute -right-[8%] -top-[6%] select-none font-display font-extrabold leading-none"
+              style="font-size: 13rem; color: #fff; opacity: 0.07">@art.Initial</span>
+
+        <svg aria-hidden="true" viewBox="0 0 100 150" preserveAspectRatio="none" class="absolute inset-0 h-full w-full">
+            <defs>
+                <linearGradient id="@beamId" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="@art.Glow" stop-opacity="0.34"></stop>
+                    <stop offset="100%" stop-color="@art.Glow" stop-opacity="0"></stop>
+                </linearGradient>
+            </defs>
+            <polygon points="50,-10 96,150 4,150" fill="url(#@beamId)"></polygon>
+        </svg>
+
+        <div class="absolute inset-0 grain opacity-40" aria-hidden="true"></div>
+        <div class="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-ink-950/85 to-transparent" aria-hidden="true"></div>
+
+        <div class="absolute inset-x-0 bottom-0 p-3.5">
+            <p class="font-display text-[15px] font-extrabold leading-tight text-white/95 drop-shadow">@Model.Title</p>
+            <span class="mt-1.5 block h-[2px] w-8 rounded-full" style="background: @art.Glow"></span>
+        </div>
+    </div>
+}

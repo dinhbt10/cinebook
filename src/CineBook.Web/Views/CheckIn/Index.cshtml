@@ -1,0 +1,150 @@
+@Html.AntiForgeryToken()
+<div class="mx-auto max-w-xl px-4 py-10">
+    <div class="mb-7 text-center">
+        @Html.Icon("scan-line", 30, "mx-auto mb-3 text-brand-500")
+        <h1 class="font-display text-2xl font-extrabold">Soát vé</h1>
+        <p class="mt-1.5 text-[13px] text-faint">Quét mã QR trên vé của khách tại cửa phòng chiếu</p>
+    </div>
+
+    <div id="checkin-result"></div>
+
+    <div id="checkin-card" class="surface p-6">
+        <div id="qr-reader" class="mb-4 overflow-hidden rounded-xl hidden"></div>
+
+        <button type="button" data-camera-start class="@Ui.Button("primary", "lg", "w-full")">
+            @Html.Icon("camera", 17) Bật camera quét mã
+        </button>
+        <button type="button" data-camera-stop class="@Ui.Button("secondary", "lg", "w-full")" style="display:none">
+            @Html.Icon("camera-off", 17) Tắt camera
+        </button>
+
+        <div class="my-5 flex items-center gap-3 text-[12px] text-faint">
+            <span class="h-px flex-1 bg-ink-700"></span> hoặc <span class="h-px flex-1 bg-ink-700"></span>
+        </div>
+
+        <form id="code-form" class="flex flex-col gap-3">
+            <div class="flex items-center gap-2 text-[13px] text-muted">
+                @Html.Icon("keyboard", 15) Nhập mã vé khi mã QR bị mờ
+            </div>
+            <div class="flex gap-2">
+                <input name="code" placeholder="TKXXXXXXXX" class="@Ui.Input("font-mono uppercase")" />
+                <button type="submit" class="@Ui.Button()" disabled>Tra cứu</button>
+            </div>
+        </form>
+
+        <p data-checkin-error class="mt-4 text-[13px] text-velvet-400" style="display:none"></p>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+    <script>
+        $(function () {
+            var token = $('input[name=__RequestVerificationToken]').val();
+            var $result = $('#checkin-result');
+            var $card = $('#checkin-card');
+            var $input = $('#code-form [name=code]');
+            var $submit = $('#code-form [type=submit]');
+            var $start = $('[data-camera-start]');
+            var $stop = $('[data-camera-stop]');
+            var scanner = null;
+
+            function setError(message) {
+                $card.find('[data-checkin-error]').text(message || '').toggle(!!message);
+            }
+
+            function showResult(html) {
+                setError(null);
+                $result.html(html);
+                $card.hide();
+            }
+
+            function failed(xhr) {
+                var message = xhr.status === 403 ? 'Bạn không có quyền thực hiện thao tác này.'
+                    : xhr.status === 401 ? 'Bạn cần đăng nhập để tiếp tục.'
+                    : 'Không kết nối được máy chủ.';
+                setError(message);
+            }
+
+            function setScanning(on) {
+                $('#qr-reader').toggleClass('hidden', !on);
+                $start.toggle(!on);
+                $stop.toggle(on);
+            }
+
+            function stopCamera() {
+                var s = scanner;
+                if (!s) return Promise.resolve();
+                scanner = null;
+                return s.stop().then(function () { return s.clear(); }).catch(function () { })
+                    .then(function () { setScanning(false); });
+            }
+
+            function scan(payload) {
+                CB.setLoading($start, true);
+                $.post('/CheckIn/Scan', { qrPayload: payload, __RequestVerificationToken: token })
+                    .done(showResult)
+                    .fail(failed)
+                    .always(function () { CB.setLoading($start, false); });
+            }
+
+            $start.on('click', function () {
+                setError(null);
+                try {
+                    scanner = new Html5Qrcode('qr-reader');
+                    setScanning(true);
+                    scanner.start(
+                        { facingMode: 'environment' },
+                        { fps: 10, qrbox: { width: 240, height: 240 } },
+                        function (decoded) { scan(decoded); stopCamera(); },
+                        function () { }
+                    ).catch(function () {
+                        scanner = null;
+                        setScanning(false);
+                        setError('Không mở được camera. Hãy cấp quyền cho trình duyệt, hoặc nhập mã vé bằng tay.');
+                    });
+                } catch (e) {
+                    scanner = null;
+                    setScanning(false);
+                    setError('Không mở được camera. Hãy cấp quyền cho trình duyệt, hoặc nhập mã vé bằng tay.');
+                }
+            });
+
+            $stop.on('click', stopCamera);
+
+            $input.on('input', function () {
+                var upper = this.value.toUpperCase();
+                if (upper !== this.value) {
+                    var pos = this.selectionStart;
+                    this.value = upper;
+                    this.setSelectionRange(pos, pos);
+                }
+                $submit.prop('disabled', !upper.trim());
+            });
+
+            $('#code-form').on('submit', function (e) {
+                e.preventDefault();
+                var code = $input.val().trim();
+                if (!code) return;
+                CB.setLoading($submit, true);
+                $.post('/CheckIn/ByCode', { code: code, __RequestVerificationToken: token })
+                    .done(function (html) {
+                        $input.val('');
+                        showResult(html);
+                    })
+                    .fail(failed)
+                    .always(function () {
+                        CB.setLoading($submit, false);
+                        $submit.prop('disabled', !$input.val().trim());
+                    });
+            });
+
+            $(document).on('click', '[data-checkin-next]', function () {
+                $result.empty();
+                $card.show();
+            });
+
+            $(window).on('beforeunload', function () { stopCamera(); });
+        });
+    </script>
+}

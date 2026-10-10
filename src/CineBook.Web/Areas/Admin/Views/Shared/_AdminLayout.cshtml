@@ -1,0 +1,80 @@
+@{
+    var theme = Context.Request.Cookies["theme"] == "light" ? "light" : "dark";
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var isAdmin = User.IsInRole("Admin");
+    var menu = new[]
+    {
+        new { Controller = "Dashboard", Label = "Tổng quan", Icon = "layout-dashboard", AdminOnly = false },
+        new { Controller = "Movies", Label = "Phim", Icon = "film", AdminOnly = false },
+        new { Controller = "Showtimes", Label = "Suất chiếu", Icon = "monitor-play", AdminOnly = false },
+        new { Controller = "Rooms", Label = "Rạp & phòng", Icon = "store", AdminOnly = false },
+        new { Controller = "Promotions", Label = "Khuyến mãi", Icon = "tag", AdminOnly = true },
+        new { Controller = "Reports", Label = "Báo cáo", Icon = "bar-chart-3", AdminOnly = false },
+    }.Where(m => !m.AdminOnly || isAdmin).ToList();
+}
+<!DOCTYPE html>
+<html lang="vi" data-theme="@theme">
+<head>
+    <partial name="_Head" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <div class="flex min-h-screen">
+        <aside class="hidden w-60 shrink-0 flex-col border-r border-ink-800 bg-ink-900 lg:flex">
+            <a asp-area="" asp-controller="Home" asp-action="Index" class="flex h-16 items-center gap-2 border-b border-ink-800 px-5">
+                @Html.Icon("clapperboard", 20, "text-brand-500")
+                <span class="font-display font-extrabold">CineBook</span>
+                <span class="ml-auto rounded-md bg-ink-800 px-1.5 py-0.5 text-[10px] font-medium text-faint">QUẢN TRỊ</span>
+            </a>
+
+            <nav class="flex flex-1 flex-col gap-1 p-3">
+                @foreach (var m in menu)
+                {
+                    var active = controller == m.Controller;
+                    <a asp-area="Admin" asp-controller="@m.Controller" asp-action="Index"
+                       class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors @(active ? "bg-brand-950 font-medium text-brand-400" : "text-muted hover:bg-ink-800 hover:text-cream")">
+                        @Html.Icon(m.Icon, 16) @m.Label
+                    </a>
+                }
+                <div class="my-2 h-px bg-ink-800"></div>
+                <a asp-area="" asp-controller="CheckIn" asp-action="Index"
+                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-colors hover:bg-ink-800 hover:text-cream">
+                    @Html.Icon("scan-line", 16) Soát vé
+                </a>
+            </nav>
+
+            <div class="border-t border-ink-800 p-3">
+                <div class="mb-2 px-2">
+                    <p class="truncate text-[13px] font-medium">@User.Identity?.Name</p>
+                    <p class="text-[11px] text-faint">@(isAdmin ? "Quản trị hệ thống" : "Quản lý rạp")</p>
+                </div>
+                <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                    <button type="submit"
+                            class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-colors hover:bg-ink-800 hover:text-velvet-400">
+                        @Html.Icon("log-out", 16) Đăng xuất
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="fixed inset-x-0 bottom-0 z-40 flex border-t border-ink-800 bg-ink-900 lg:hidden">
+            @foreach (var m in menu)
+            {
+                var active = controller == m.Controller;
+                <a asp-area="Admin" asp-controller="@m.Controller" asp-action="Index"
+                   class="flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] @(active ? "text-brand-400" : "text-faint")">
+                    @Html.Icon(m.Icon, 17) @m.Label
+                </a>
+            }
+        </div>
+
+        <main class="min-w-0 flex-1 pb-20 lg:pb-0">@RenderBody()</main>
+    </div>
+
+    <script src="~/lib/jquery/jquery.min.js"></script>
+    <script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+    <script src="~/js/icons.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

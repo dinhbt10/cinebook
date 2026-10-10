@@ -1,0 +1,117 @@
+@model ShowtimeFormViewModel
+@{
+    var movies = (List<KeyValuePair<Guid, string>>)ViewBag.Movies;
+    var cinemas = (List<CinemaDto>)ViewBag.Cinemas;
+    var rooms = (List<RoomDto>)ViewBag.Rooms;
+}
+<div id="create-showtime-modal" data-modal style="background: var(--color-scrim); display: none"
+     class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+    <div class="surface my-8 w-full animate-rise p-6 max-w-lg">
+        <h3 class="mb-5 text-lg font-bold">Tạo suất chiếu</h3>
+        <form asp-action="Create" method="post" data-loading data-showtime-form class="flex flex-col gap-4">
+            <partial name="_FormError" />
+
+            <label class="flex flex-col gap-1.5">
+                <span class="@Ui.Label">Phim</span>
+                <select asp-for="MovieId" class="@Ui.Select()">
+                    <option value="">— Chọn phim —</option>
+                    @foreach (var m in movies)
+                    {
+                        <option value="@m.Key" selected="@(Model.MovieId == m.Key)">@m.Value</option>
+                    }
+                </select>
+                <span asp-validation-for="MovieId" class="@Ui.FieldError empty:hidden"></span>
+            </label>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Rạp</span>
+                    <select asp-for="CinemaId" class="@Ui.Select()">
+                        <option value="">— Chọn rạp —</option>
+                        @foreach (var c in cinemas)
+                        {
+                            <option value="@c.Id" selected="@(Model.CinemaId == c.Id)">@c.Name</option>
+                        }
+                    </select>
+                    <span asp-validation-for="CinemaId" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Phòng chiếu</span>
+                    <select asp-for="RoomId" disabled="@(Model.CinemaId == null)" class="@Ui.Select()">
+                        <option value="">— Chọn phòng —</option>
+                        @foreach (var r in rooms)
+                        {
+                            <option value="@r.Id" selected="@(Model.RoomId == r.Id)">@r.Name · @Fmt.Label(Fmt.RoomTypeLabel, r.RoomType) · @r.SeatCount ghế</option>
+                        }
+                    </select>
+                    <span asp-validation-for="RoomId" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+            </div>
+
+            <label class="flex flex-col gap-1.5">
+                <span class="@Ui.Label">Giờ bắt đầu (giờ Việt Nam)</span>
+                <input asp-for="StartsLocal" asp-format="{0:yyyy-MM-ddTHH:mm}" class="@Ui.Input("peer")" />
+                <span asp-validation-for="StartsLocal" class="@Ui.FieldError empty:hidden"></span>
+                <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Giờ kết thúc tự tính theo thời lượng phim cộng thời gian dọn phòng</span>
+            </label>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Giá cơ sở (đồng)</span>
+                    <input asp-for="BasePrice" type="number" min="1000" step="1000" asp-format="{0:0.##}" class="@Ui.Input("peer")" />
+                    <span asp-validation-for="BasePrice" class="@Ui.FieldError empty:hidden"></span>
+                    <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Dùng để tính giá gợi ý cho từng loại ghế bên dưới</span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Ngôn ngữ</span>
+                    <select asp-for="SubtitleMode" class="@Ui.Select()">
+                        <option value="Subtitled">Phụ đề</option>
+                        <option value="Dubbed">Lồng tiếng</option>
+                        <option value="Original">Nguyên bản</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="rounded-xl border border-ink-700 bg-ink-900 p-3.5">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <p class="text-[13px] font-medium text-muted">Giá vé theo loại ghế (đồng)</p>
+                    <button type="button" data-restore-prices style="@(string.IsNullOrEmpty(Model.PriceOverrides) ? "display: none" : "")"
+                            class="text-[12px] text-brand-400 hover:underline">Khôi phục giá gợi ý</button>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <label class="flex flex-col gap-1.5">
+                        <span class="@Ui.Label">Ghế thường</span>
+                        <input asp-for="PriceStandard" type="number" min="1000" step="1000" asp-format="{0:0.##}" data-price="standard" class="@Ui.Input()" />
+                        <span asp-validation-for="PriceStandard" class="@Ui.FieldError empty:hidden"></span>
+                    </label>
+                    <label class="flex flex-col gap-1.5">
+                        <span class="@Ui.Label">Ghế VIP</span>
+                        <input asp-for="PriceVip" type="number" min="1000" step="1000" asp-format="{0:0.##}" data-price="vip" class="@Ui.Input()" />
+                        <span asp-validation-for="PriceVip" class="@Ui.FieldError empty:hidden"></span>
+                    </label>
+                    <label class="flex flex-col gap-1.5">
+                        <span class="@Ui.Label">Ghế đôi</span>
+                        <input asp-for="PriceCouple" type="number" min="1000" step="1000" asp-format="{0:0.##}" data-price="couple" class="@Ui.Input()" />
+                        <span asp-validation-for="PriceCouple" class="@Ui.FieldError empty:hidden"></span>
+                    </label>
+                </div>
+                <p class="mt-2.5 text-[12px] text-faint">
+                    Tự điền theo bảng giá khi đã chọn phòng và giờ chiếu (tính cả loại phòng, suất sáng,
+                    cuối tuần). Sửa ô nào thì ô đó giữ giá bạn nhập — khách trả đúng giá ở đây.
+                </p>
+                <input type="hidden" asp-for="PriceOverrides" />
+            </div>
+
+            <label class="flex items-center gap-2.5 text-sm text-muted">
+                <input asp-for="OpenForSale" class="h-4 w-4 accent-[#F0A62F]" />Mở bán vé ngay sau khi tạo</label>
+
+            <input type="hidden" asp-for="FilterDate" value="@(Model.FilterDate.HasValue ? Fmt.Iso(Model.FilterDate.Value) : "")" />
+            <input type="hidden" asp-for="FilterCinemaId" />
+
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" data-modal-close class="@Ui.Button("ghost")">Hủy</button>
+                <button type="submit" class="@Ui.Button()">Tạo suất chiếu</button>
+            </div>
+        </form>
+    </div>
+</div>

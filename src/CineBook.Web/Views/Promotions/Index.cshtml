@@ -1,0 +1,121 @@
+@model VoucherListViewModel
+@{
+    var loggedIn = User.Identity?.IsAuthenticated == true;
+}
+<div class="mx-auto max-w-4xl px-4 py-10">
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div class="min-w-0">
+            <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                <span class="h-px w-6 bg-brand-600/70"></span>Khuyến mãi
+            </p>
+            <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Voucher</h2>
+            <p class="mt-1.5 max-w-xl text-sm text-faint">@(loggedIn
+                ? "Lưu voucher vào kho, tới bước đặt vé chỉ việc bấm chọn — không cần nhớ mã."
+                : "Đăng nhập để lưu voucher vào kho và dùng nhanh khi đặt vé.")</p>
+        </div>
+        @if (loggedIn)
+        {
+            <button type="button" id="voucher-add-open" class="@Ui.Button("secondary", "sm")">
+                @Html.Icon("plus", 14) Thêm bằng mã
+            </button>
+        }
+    </div>
+
+    @if (loggedIn)
+    {
+        @Html.AntiForgeryToken()
+        <div id="voucher-add" class="mb-6 flex flex-col gap-2 hidden">
+            <div class="flex gap-2">
+                <input id="voucher-code" type="text" autocomplete="off" placeholder="Nhập mã voucher" class="@Ui.Input("font-mono uppercase")" />
+                <button type="button" id="voucher-add-submit" disabled class="@Ui.Button()">Lưu vào kho</button>
+                <button type="button" id="voucher-add-close" class="@Ui.Button("ghost")">@Html.Icon("x", 15)</button>
+            </div>
+            <div id="voucher-add-error" class="@Ui.ErrorNote hidden"></div>
+        </div>
+    }
+
+    <div id="voucher-list">
+        <partial name="_VoucherList" model="Model" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            function token() {
+                return $('input[name="__RequestVerificationToken"]').val();
+            }
+
+            function showError(message) {
+                $('#voucher-add-error').text(message).toggleClass('hidden', !message);
+            }
+
+            function closeAdd() {
+                $('#voucher-add').addClass('hidden');
+                $('#voucher-add-open').show();
+                $('#voucher-code').val('');
+                $('#voucher-add-submit').prop('disabled', true);
+                showError('');
+            }
+
+            function saveByCode() {
+                var code = $('#voucher-code').val();
+                var $button = $('#voucher-add-submit');
+                if (!code.trim() || $button.data('cb-loading')) return;
+                CB.setLoading($button, true);
+                $.post('/Promotions/SaveByCode', { code: code, __RequestVerificationToken: token() })
+                    .done(function (response) {
+                        CB.setLoading($button, false);
+                        $('#voucher-list').html(response);
+                        closeAdd();
+                    })
+                    .fail(function (xhr) {
+                        CB.setLoading($button, false);
+                        $button.prop('disabled', !$('#voucher-code').val().trim());
+                        showError(xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Có lỗi xảy ra, vui lòng thử lại.');
+                    });
+            }
+
+            $('#voucher-add-open').on('click', function () {
+                $(this).hide();
+                $('#voucher-add').removeClass('hidden');
+                $('#voucher-code').trigger('focus');
+            });
+
+            $('#voucher-add-close').on('click', closeAdd);
+
+            $('#voucher-code').on('input', function () {
+                var value = $(this).val().toUpperCase();
+                $(this).val(value);
+                $('#voucher-add-submit').prop('disabled', !value.trim());
+                showError('');
+            }).on('keydown', function (e) {
+                if (e.key === 'Enter') saveByCode();
+            });
+
+            $('#voucher-add-submit').on('click', saveByCode);
+
+            $(document).on('click', '[data-voucher-toggle]', function () {
+                var $button = $(this);
+                var url = $button.attr('data-saved') === 'true' ? '/Promotions/Unsave' : '/Promotions/Save';
+                $.post(url, { id: $button.attr('data-voucher-toggle'), __RequestVerificationToken: token() })
+                    .done(function (response) {
+                        $('#voucher-list').html(response);
+                    });
+            });
+
+            $(document).on('click', '[data-copy]', function () {
+                var $button = $(this);
+                var $label = $button.find('span').last();
+                if (!navigator.clipboard) return;
+                navigator.clipboard.writeText($button.attr('data-copy')).then(function () {
+                    $label.html(CB.icon('copy', 12) + ' <!---->Đã chép');
+                    clearTimeout($button.data('copy-timer'));
+                    $button.data('copy-timer', setTimeout(function () {
+                        $label.html(CB.icon('copy', 12) + ' <!---->Chép mã');
+                    }, 1600));
+                }).catch(function () { });
+            });
+        });
+    </script>
+}

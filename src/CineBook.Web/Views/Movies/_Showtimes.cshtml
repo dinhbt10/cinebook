@@ -1,0 +1,43 @@
+@model List<ShowtimeListItemDto>
+@{
+    var byCinema = Model.GroupBy(s => s.CinemaName).ToList();
+}
+@if (byCinema.Count == 0)
+{
+    <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ink-700 px-6 py-14 text-center">
+        <div class="text-ink-500">@Html.Icon("map-pin", 36)</div>
+        <div>
+            <p class="font-display text-lg font-bold">Chưa có suất chiếu cho ngày này</p>
+            <p class="mt-1 max-w-sm text-sm text-faint">Hãy thử chọn một ngày khác trong tuần.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="flex flex-col gap-4">
+        @foreach (var cinema in byCinema)
+        {
+            <div class="surface overflow-hidden">
+                <div class="flex items-center gap-2.5 border-b border-ink-700 bg-ink-900/60 px-5 py-3.5">
+                    @Html.Icon("map-pin", 16, "text-brand-500")
+                    <h3 class="text-base font-bold">@cinema.Key</h3>
+                    <span class="ml-auto text-[12px] text-faint">@cinema.Count()<!----> suất</span>
+                </div>
+                <div class="flex flex-wrap gap-2.5 p-5">
+                    @foreach (var s in cinema)
+                    {
+                        var almostFull = s.AvailableSeats <= s.TotalSeats * 0.15;
+                        <a asp-controller="Booking" asp-action="Index" asp-route-id="@s.Id"
+                           class="lift group flex min-w-36 flex-col gap-1 rounded-xl border border-ink-600 bg-ink-900 px-4 py-3
+                                  hover:border-brand-500">
+                            <span class="font-display text-xl font-bold leading-none tabular transition-colors group-hover:text-brand-400">@Fmt.Time(s.StartsAtUtc)</span>
+                            <span class="text-[11px] text-faint">@s.RoomName<!----> · <!---->@Fmt.Label(Fmt.RoomTypeLabel, s.RoomType)<!----> · <!---->@Fmt.Label(Fmt.SubtitleLabel, s.SubtitleMode)</span>
+                            <span class="text-[11px] @(almostFull ? "font-medium text-velvet-400" : "text-muted")">@(almostFull ? "Sắp hết · còn " + s.AvailableSeats + " ghế" : s.AvailableSeats + " ghế trống")</span>
+                            <span class="mt-0.5 text-[11px] font-semibold text-cream tabular">từ <!---->@Fmt.Money(s.FromPrice)</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}

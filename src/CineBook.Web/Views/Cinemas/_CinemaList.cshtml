@@ -1,0 +1,59 @@
+@model List<CinemaCardViewModel>
+@if (Model.Count == 0)
+{
+    <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ink-700 px-6 py-14 text-center">
+        <div class="text-ink-500">@Html.Icon("building-2", 38)</div>
+        <div>
+            <p class="font-display text-lg font-bold">Chưa có rạp ở khu vực này</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="stagger grid gap-4 md:grid-cols-2">
+        @foreach (var item in Model)
+        {
+            var cinema = item.Cinema;
+            var totalSeats = item.Rooms.Sum(r => r.SeatCount);
+            <div class="lift surface flex flex-col overflow-hidden">
+                <div class="relative flex items-start gap-3 border-b border-ink-700 p-5">
+                    <div class="absolute inset-0 -z-10 screen-glow opacity-70"></div>
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-950 text-brand-400">
+                        @Html.Icon("building-2", 19)
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="font-display text-lg font-bold leading-snug">@cinema.Name</h3>
+                        <p class="mt-1 text-[12px] text-faint">@(string.IsNullOrEmpty(cinema.District) ? "" : cinema.District + ", ")<!---->@cinema.City</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-1 flex-col gap-3 p-5">
+                    <p class="flex items-start gap-2 text-[13px] text-muted">
+                        @Html.Icon("map-pin", 14, "mt-0.5 shrink-0 text-faint")@cinema.Address
+                    </p>
+                    @if (!string.IsNullOrEmpty(cinema.Hotline))
+                    {
+                        <p class="flex items-center gap-2 text-[13px] text-muted">
+                            @Html.Icon("phone", 14, "shrink-0 text-faint") <!---->@cinema.Hotline
+                        </p>
+                    }
+
+                    @if (item.Rooms.Count > 0)
+                    {
+                        <div class="mt-auto border-t border-ink-700 pt-4">
+                            <p class="mb-2.5 flex items-center gap-1.5 text-[12px] font-semibold text-muted">
+                                @Html.Icon("projector", 13) <!---->@item.Rooms.Count<!----> phòng chiếu · <!---->@totalSeats<!----> ghế
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach (var r in item.Rooms)
+                                {
+                                    <span class="@Ui.Badge(r.RoomType == "Imax" ? "brand" : "outline")">@r.Name<!----> · <!---->@Fmt.Label(Fmt.RoomTypeLabel, r.RoomType)<!----> · <!---->@r.SeatCount<!----> ghế</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}

@@ -1,0 +1,37 @@
+@model ReportsViewModel
+<div class="p-6 lg:p-8">
+    <h1 class="mb-6 text-2xl font-extrabold">Báo cáo doanh thu</h1>
+
+    <div class="mb-6 flex flex-wrap items-end gap-4">
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Từ ngày</span>
+            <input type="date" id="report-from" value="@(Model.From == null ? "" : Fmt.Iso(Model.From.Value))" class="@Ui.Input("w-44")" />
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Đến ngày</span>
+            <input type="date" id="report-to" value="@(Model.To == null ? "" : Fmt.Iso(Model.To.Value))" class="@Ui.Input("w-44")" />
+        </label>
+    </div>
+
+    <div id="report-data">
+        <partial name="_ReportData" model="Model" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            function reload() {
+                $.ajax({
+                    url: '@Url.Action("Data", "Reports")',
+                    data: { from: $('#report-from').val(), to: $('#report-to').val() },
+                    success: function (response) {
+                        $('#report-data').html(response);
+                    }
+                });
+            }
+
+            $('#report-from, #report-to').on('change', reload);
+        });
+    </script>
+}

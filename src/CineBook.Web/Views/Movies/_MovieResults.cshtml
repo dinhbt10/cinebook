@@ -1,0 +1,17 @@
+@model MovieGridViewModel
+<div data-total="@Model.Total" data-page-count="@Model.PageCount">
+    @if (Model.Movies.Count == 0)
+    {
+        <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ink-700 px-6 py-14 text-center">
+            <div class="text-ink-500">@Html.Icon("film", 40)</div>
+            <div>
+                <p class="font-display text-lg font-bold">Không tìm thấy phim nào</p>
+                <p class="mt-1 max-w-sm text-sm text-faint">@(Model.HasFilter ? "Thử đổi từ khóa hoặc bỏ bớt bộ lọc." : "Hiện chưa có phim nào được mở bán.")</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <partial name="_MovieGrid" model="Model.Movies" />
+    }
+</div>

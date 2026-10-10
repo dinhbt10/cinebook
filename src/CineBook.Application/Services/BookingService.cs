@@ -9,15 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace CineBook.Application.Services;
 
-/// <summary>
-/// Trái tim hệ thống: giữ ghế có thời hạn và chống đặt trùng.
-///
-/// Không dùng Redis. Việc giành ghế thực hiện bằng MỘT câu UPDATE có điều kiện:
-/// PostgreSQL tự khoá dòng khi cập nhật, nên hai người bấm cùng lúc thì người
-/// thứ hai không khớp điều kiện và cập nhật được 0 dòng — đó chính là BR-01.
-/// Điều kiện "HoldExpiresAtUtc &lt; now" khiến hold quá hạn tự động được coi là ghế
-/// trống, nên ghế được nhả mà không cần job nào can thiệp (BR-02).
-/// </summary>
 public class BookingService(
     IAppDbContext db,
     IDateTimeProvider clock,
@@ -27,8 +18,6 @@ public class BookingService(
     ILogger<BookingService> logger)
 {
     private readonly BookingOptions _opt = options.Value;
-
-    // ---------------------------------------------------------------- sơ đồ ghế
 
     public async Task<Result<SeatMapDto>> GetSeatMapAsync(
         Guid showtimeId, Guid? currentUserId, CancellationToken ct = default)
@@ -63,11 +52,8 @@ public class BookingService(
             showtime.StartsAtUtc, _opt.MaxSeatsPerBooking, seats));
     }
 
-    /// <summary>Hold đã quá hạn thì hiển thị như ghế trống, đúng như câu UPDATE nhìn nhận.</summary>
     private static SeatStatus Display(ShowtimeSeat s, DateTime now) =>
         s.Status == SeatStatus.Held && s.HoldExpiresAtUtc <= now ? SeatStatus.Available : s.Status;
-
-    // ---------------------------------------------------------------- giữ ghế
 
     public async Task<Result<BookingDto>> HoldSeatsAsync(
         Guid userId, HoldSeatsRequest req, CancellationToken ct = default)
@@ -77,7 +63,6 @@ public class BookingService(
         if (seatIds.Length == 0)
             return Result<BookingDto>.Fail("NO_SEAT", "Chưa chọn ghế nào.");
 
-        // BR-04
         if (seatIds.Length > _opt.MaxSeatsPerBooking)
             return Result<BookingDto>.Fail("TOO_MANY_SEATS",
                 $"Mỗi lần đặt tối đa {_opt.MaxSeatsPerBooking} ghế.");
@@ -96,7 +81,6 @@ public class BookingService(
 
         var now = clock.UtcNow;
 
-        // BR-03
         if (showtime.StartsAtUtc <= now.AddMinutes(_opt.MinutesBeforeStartToBlock))
             return Result<BookingDto>.Fail("TOO_LATE",
                 $"Suất chiếu sắp bắt đầu, ngừng bán trước giờ chiếu {_opt.MinutesBeforeStartToBlock} phút.");
@@ -105,9 +89,6 @@ public class BookingService(
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        // Khách quay lại trang đặt vé (F5, bấm back, về từ cổng thanh toán) rồi giữ ghế lần nữa:
-        // đơn chờ cũ của chính họ ở suất này phải được đóng và nhả ghế trước, nếu không
-        // ghế của chính họ vẫn đang Held nên câu UPDATE bên dưới trả về SEATS_TAKEN.
         await CloseOwnPendingAsync(userId, showtime.Id, now, ct);
 
         var booking = new Booking
@@ -122,7 +103,6 @@ public class BookingService(
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(ct);
 
-        // ---- BR-01 + BR-02: giành ghế bằng một câu UPDATE có điều kiện ----
         var affected = await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE "ShowtimeSeats"
             SET "Status" = {(int)SeatStatus.Held},
@@ -145,7 +125,6 @@ public class BookingService(
                 "Một số ghế vừa có người khác chọn. Vui lòng làm mới sơ đồ ghế và chọn lại.");
         }
 
-        // ---- tính tiền ----
         var heldSeats = await db.ShowtimeSeats
             .Include(x => x.Seat)
             .Where(x => x.BookingId == booking.Id)
@@ -176,11 +155,6 @@ public class BookingService(
         return Result<BookingDto>.Ok(await MapAsync(booking.Id, ct));
     }
 
-    /// <summary>
-    /// Mỗi khách chỉ giữ một đơn chờ thanh toán cho một suất. Đơn đã quá hạn thì ghi là
-    /// hết hạn, đơn còn hạn thì coi như khách hủy để chọn lại. Chạy trong transaction
-    /// của lần giữ ghế mới, nên giữ ghế thất bại thì đơn cũ được trả nguyên trạng.
-    /// </summary>
     private async Task CloseOwnPendingAsync(Guid userId, Guid showtimeId, DateTime now, CancellationToken ct)
     {
         var stale = await db.Bookings
@@ -232,11 +206,6 @@ public class BookingService(
         return Result.Ok();
     }
 
-    /// <summary>
-    /// Áp mã giảm giá. Luật xét nằm ở <see cref="PromotionService.EvaluateAsync"/> —
-    /// dùng chung với danh sách voucher hiện cho khách, nên số tiền giảm khách thấy
-    /// trước khi bấm luôn đúng bằng số hệ thống trừ.
-    /// </summary>
     private async Task<Result> ApplyPromotionAsync(
         Booking booking, Guid userId, string? code, DateTime now, CancellationToken ct)
     {
@@ -259,9 +228,6 @@ public class BookingService(
         return Result.Ok();
     }
 
-    // ---------------------------------------------------------------- chuyển trạng thái
-
-    /// <summary>Khách chủ động hủy giữa luồng: nhả ghế ngay, không chờ hết 8 phút.</summary>
     public async Task<Result> CancelPendingAsync(Guid bookingId, Guid userId, CancellationToken ct = default)
     {
         var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == userId, ct);
@@ -277,10 +243,6 @@ public class BookingService(
         return Result.Ok();
     }
 
-    /// <summary>
-    /// Gọi từ luồng webhook sau khi thanh toán thành công: ghế chuyển sang đã bán
-    /// và sinh vé kèm mã QR đã ký (BR-11).
-    /// </summary>
     public async Task<Result<Booking>> ConfirmPaidAsync(Guid bookingId, CancellationToken ct = default)
     {
         var booking = await db.Bookings
@@ -336,11 +298,6 @@ public class BookingService(
         return Result<Booking>.Ok(booking);
     }
 
-    /// <summary>
-    /// Job dọn đơn treo. Lưu ý: ghế đã tự được coi là trống ngay khi hết hạn,
-    /// job này chỉ để trạng thái đơn hàng trong CSDL phản ánh đúng thực tế,
-    /// nếu không thì báo cáo doanh thu sẽ sai.
-    /// </summary>
     public async Task<int> ExpireOverdueBookingsAsync(CancellationToken ct = default)
     {
         var now = clock.UtcNow;
@@ -383,8 +340,6 @@ public class BookingService(
     public Task ReleaseSeatsOfBookingAsync(Guid bookingId, CancellationToken ct = default) =>
         ReleaseSeatsAsync(bookingId, ct);
 
-    // ---------------------------------------------------------------- đọc
-
     public async Task<BookingDto> MapAsync(Guid bookingId, CancellationToken ct = default)
     {
         var b = await BookingsWithDetails()
@@ -392,7 +347,6 @@ public class BookingService(
         return (await ToDtosAsync([b], ct))[0];
     }
 
-    /// <summary>Đơn của chính người đang đăng nhập; đơn của người khác coi như không tồn tại.</summary>
     public async Task<BookingDto?> GetForUserAsync(Guid bookingId, Guid userId, CancellationToken ct = default)
     {
         var b = await BookingsWithDetails()
@@ -400,19 +354,13 @@ public class BookingService(
         return b is null ? null : (await ToDtosAsync([b], ct))[0];
     }
 
-    /// <summary>
-    /// Danh sách vé của một người. Tải một lần kèm đầy đủ quan hệ thay vì
-    /// truy vấn lại cho từng đơn, nếu không mỗi đơn sẽ tốn một vòng gọi cơ sở dữ liệu.
-    /// </summary>
     public async Task<IReadOnlyList<BookingDto>> GetMyBookingsAsync(
         Guid userId, int take = 30, CancellationToken ct = default)
     {
         var now = clock.UtcNow;
         var bookings = await BookingsWithDetails()
             .Where(b => b.UserId == userId && b.Status != BookingStatus.Expired)
-            // Đơn chờ đã quá hạn giữ ghế cũng là đơn hết hạn, dù job dọn đơn chưa kịp chạy.
             .Where(b => b.Status != BookingStatus.Pending || b.HoldExpiresAtUtc > now)
-            // Đơn khách tự hủy khi chưa trả tiền (chọn lại ghế, bấm hủy) không phải "vé".
             .Where(b => b.Status != BookingStatus.Cancelled || b.PaidAtUtc != null)
             .OrderByDescending(b => b.CreatedAtUtc)
             .Take(Math.Clamp(take, 1, 100))
@@ -430,11 +378,6 @@ public class BookingService(
             .Include(x => x.Tickets).ThenInclude(t => t.Seat)
             .AsSplitQuery();
 
-    /// <summary>
-    /// Nhả ghế (hủy, hoàn tiền) xoá BookingId trên ShowtimeSeat vì dòng đó còn được bán lại,
-    /// nên đơn đã hủy không còn BookedSeats. Khi đó dựng danh sách ghế từ vé đã phát,
-    /// giá lấy lại từ ShowtimeSeat — giá đã chốt cho ghế đó trong suất đó, không đổi.
-    /// </summary>
     private async Task<IReadOnlyList<BookingDto>> ToDtosAsync(
         IReadOnlyList<Booking> bookings, CancellationToken ct)
     {
@@ -458,9 +401,6 @@ public class BookingService(
             ? Math.Max(0, (int)(b.HoldExpiresAtUtc - clock.UtcNow).TotalSeconds)
             : 0;
 
-        // Job dọn đơn chạy thưa (30 phút) để Neon được ngủ, nên đơn chờ quá hạn có thể vẫn
-        // ghi Pending trong CSDL. Trả về Expired ngay khi hết hạn — cùng cách nhìn với
-        // sơ đồ ghế — để giao diện không chờ mãi một đơn đã không còn thanh toán được.
         var status = b.Status == BookingStatus.Pending && secondsLeft == 0
             ? BookingStatus.Expired
             : b.Status;

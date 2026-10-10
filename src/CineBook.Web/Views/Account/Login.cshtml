@@ -1,0 +1,67 @@
+@model LoginViewModel
+@{
+    var demo = new[]
+    {
+        new[] { "khach@gmail.com", "Khách hàng" },
+        new[] { "admin@cinebook.vn", "Quản trị hệ thống" },
+        new[] { "manager@cinebook.vn", "Quản lý rạp" },
+        new[] { "staff@cinebook.vn", "Nhân viên soát vé" },
+    };
+}
+<div class="relative mx-auto max-w-md px-4 py-14">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-64 screen-glow"></div>
+    <div class="relative">
+        <div class="mb-7 text-center">
+            @Html.Icon("clapperboard", 30, "mx-auto mb-3 text-brand-500")
+            <h1 class="font-display text-2xl font-extrabold">Đăng nhập</h1>
+            <p class="mt-1.5 text-[13px] text-faint">Đăng nhập để đặt vé và quản lý vé của bạn</p>
+        </div>
+        <div class="surface p-6">
+            <form asp-action="Login" asp-route-next="@ViewBag.Next" method="post" data-loading class="flex flex-col gap-4">
+                <partial name="_FormError" />
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Email</span>
+                    <input asp-for="Email" autocomplete="email" placeholder="ban@email.com" class="@Ui.Input()" />
+                    <span asp-validation-for="Email" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Mật khẩu</span>
+                    <input asp-for="Password" autocomplete="current-password" placeholder="••••••" class="@Ui.Input()" />
+                    <span asp-validation-for="Password" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+                <button type="submit" class="@Ui.Button("primary", "lg")">Đăng nhập</button>
+            </form>
+
+            <p class="mt-5 text-center text-[13px] text-faint">
+                Chưa có tài khoản? <a asp-action="Register" class="text-brand-400 hover:underline">Đăng ký ngay</a>
+            </p>
+
+            <div class="mt-6 rounded-xl border border-ink-700 bg-ink-900 p-4">
+                <p class="mb-2.5 text-[12px] font-semibold text-muted">Tài khoản dùng thử — mật khẩu 123456</p>
+                <div class="flex flex-col gap-1.5">
+                    @foreach (var d in demo)
+                    {
+                        <button type="button" data-demo="@d[0]"
+                                class="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[12px]
+                                       text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                            <span class="font-mono">@d[0]</span>
+                            <span>@d[1]</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(function () {
+            $('[data-demo]').on('click', function () {
+                $('#Email').val($(this).data('demo'));
+                $('#Password').val('123456');
+            });
+        });
+    </script>
+}

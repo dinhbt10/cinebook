@@ -1,0 +1,47 @@
+@model RegisterViewModel
+<div class="relative mx-auto max-w-md px-4 py-14">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-64 screen-glow"></div>
+    <div class="relative">
+        <div class="mb-7 text-center">
+            @Html.Icon("clapperboard", 30, "mx-auto mb-3 text-brand-500")
+            <h1 class="font-display text-2xl font-extrabold">Tạo tài khoản</h1>
+            <p class="mt-1.5 text-[13px] text-faint">Chỉ mất chưa tới một phút</p>
+        </div>
+        <div class="surface p-6">
+            <form asp-action="Register" method="post" data-loading class="flex flex-col gap-4">
+                <partial name="_FormError" />
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Họ và tên</span>
+                    <input asp-for="FullName" placeholder="Nguyễn Văn A" class="@Ui.Input()" />
+                    <span asp-validation-for="FullName" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Email</span>
+                    <input asp-for="Email" autocomplete="email" placeholder="ban@email.com" class="@Ui.Input()" />
+                    <span asp-validation-for="Email" class="@Ui.FieldError empty:hidden"></span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Số điện thoại</span>
+                    <input asp-for="Phone" placeholder="09xx xxx xxx" class="@Ui.Input("peer")" />
+                    <span asp-validation-for="Phone" class="@Ui.FieldError empty:hidden"></span>
+                    <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Không bắt buộc</span>
+                </label>
+                <label class="flex flex-col gap-1.5">
+                    <span class="@Ui.Label">Mật khẩu</span>
+                    <input asp-for="Password" autocomplete="new-password" placeholder="••••••" class="@Ui.Input("peer")" />
+                    <span asp-validation-for="Password" class="@Ui.FieldError empty:hidden"></span>
+                    <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Ít nhất 6 ký tự</span>
+                </label>
+                <button type="submit" class="@Ui.Button("primary", "lg")">Đăng ký</button>
+            </form>
+
+            <p class="mt-5 text-center text-[13px] text-faint">
+                Đã có tài khoản? <a asp-action="Login" class="text-brand-400 hover:underline">Đăng nhập</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

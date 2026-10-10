@@ -1,0 +1,154 @@
+@model MovieDetailViewModel
+@{
+    var movie = Model.Movie;
+    var hasTrailer = !string.IsNullOrEmpty(movie.TrailerUrl);
+    var meta = new List<(string Icon, string Label, string? Value)>();
+    meta.Add(("clock", "Thời lượng", movie.DurationMinutes + " phút"));
+    meta.Add(("calendar-days", "Khởi chiếu", Fmt.Date(movie.ReleaseDate)));
+    meta.Add(("user-2", "Đạo diễn", movie.Director));
+    meta.Add(("globe", "Ngôn ngữ", movie.Language));
+    meta.Add(("users-2", "Diễn viên", movie.Cast));
+    var day = "flex min-w-17 shrink-0 flex-col items-center gap-0.5 rounded-xl border px-3.5 py-2.5 transition-all";
+    var dayOn = day + " border-brand-500 bg-brand-500 text-on-brand shadow-[0_8px_24px_-10px_rgba(229, 9, 20,.7)]";
+    var dayOff = day + " border-ink-700 text-muted hover:border-ink-600 hover:bg-ink-850 hover:text-cream";
+}
+<div>
+    <section class="on-dark relative isolate overflow-hidden border-b border-ink-800">
+        <div class="absolute inset-0 -z-20">
+            <partial name="_Backdrop" model='new PosterModel { Title = movie.Title, Url = movie.BackdropUrl }' />
+        </div>
+        <div class="absolute inset-0 -z-10 scrim-b"></div>
+        <div class="absolute inset-0 -z-10 hidden scrim-l md:block"></div>
+        <div class="absolute inset-0 -z-10 grain opacity-30"></div>
+
+        <div class="relative mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-[220px_1fr] md:py-16">
+            <div class="group relative mx-auto w-40 overflow-hidden rounded-2xl border border-ink-700/80 shadow-2xl shadow-ink-950 md:mx-0 md:w-full">
+                <div class="aspect-[2/3] w-full">
+                    <partial name="_Poster" model='new PosterModel { Title = movie.Title, Url = movie.PosterUrl, Eager = true }' />
+                </div>
+                @if (hasTrailer)
+                {
+                    <button type="button" data-trailer="@movie.TrailerUrl" data-title="@movie.Title" aria-label="Xem trailer"
+                            class="absolute inset-0 flex items-center justify-center bg-ink-950/55 opacity-0
+                                   transition-opacity duration-300 group-hover:opacity-100">
+                        <span class="flex h-14 w-14 items-center justify-center rounded-full bg-brand-500 text-on-brand">
+                            @Html.Icon("play", 20, null, true)
+                        </span>
+                    </button>
+                }
+            </div>
+
+            <div class="flex flex-col gap-4">
+                <div>
+                    <h1 class="font-display text-3xl font-extrabold leading-tight md:text-5xl">@movie.Title</h1>
+                    @if (!string.IsNullOrEmpty(movie.OriginalTitle))
+                    {
+                        <p class="mt-1.5 text-sm text-muted">@movie.OriginalTitle</p>
+                    }
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <span class="@Ui.Badge("brand")">@movie.AgeRating</span>
+                    @foreach (var g in movie.Genres)
+                    {
+                        <span class="@Ui.Badge()">@g</span>
+                    }
+                </div>
+
+                <p class="text-[12.5px] text-faint">@(Fmt.AgeRatingLabel.TryGetValue(movie.AgeRating, out var ageLabel) ? ageLabel : "")</p>
+
+                <dl class="grid gap-x-8 gap-y-2.5 text-[13px] sm:grid-cols-2">
+                    @foreach (var item in meta.Where(x => !string.IsNullOrEmpty(x.Value)))
+                    {
+                        <div class="flex items-start gap-2">
+                            <span class="mt-0.5 shrink-0 text-faint">@Html.Icon(item.Icon, 14)</span>
+                            <dt class="shrink-0 text-faint">@item.Label<!---->:</dt>
+                            <dd class="min-w-0 font-medium">@item.Value</dd>
+                        </div>
+                    }
+                </dl>
+
+                @if (!string.IsNullOrEmpty(movie.Description))
+                {
+                    if (RichText.IsHtml(movie.Description))
+                    {
+                        <div class="max-w-2xl text-sm leading-relaxed text-muted">@RichText.Render(movie.Description)</div>
+                    }
+                    else
+                    {
+                        <p class="max-w-2xl text-sm leading-relaxed text-muted">@RichText.Render(movie.Description)</p>
+                    }
+                }
+
+                <div class="mt-1 flex flex-wrap gap-3">
+                    <a href="#lich-chieu">
+                        <button type="button" class="@Ui.Button("primary", "lg")">@Html.Icon("ticket", 16) Chọn suất chiếu</button>
+                    </a>
+                    @if (hasTrailer)
+                    {
+                        <button type="button" data-trailer="@movie.TrailerUrl" data-title="@movie.Title" class="@Ui.Button("secondary", "lg")">
+                            @Html.Icon("play", 15, null, true) Trailer
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="lich-chieu" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-12">
+        <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+            <div class="min-w-0">
+                <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">
+                    <span class="h-px w-6 bg-brand-600/70"></span>Đặt vé
+                </p>
+                <h2 class="font-display text-2xl font-extrabold md:text-[28px]">Lịch chiếu</h2>
+                <p class="mt-1.5 max-w-xl text-sm text-faint">Chọn ngày rồi bấm vào giờ chiếu để tới sơ đồ ghế.</p>
+            </div>
+        </div>
+
+        <div class="no-scrollbar mb-8 flex gap-2 overflow-x-auto pb-1">
+            @for (var i = 0; i < Model.Days.Count; i++)
+            {
+                var d = Model.Days[i];
+                <button type="button" data-date="@Fmt.Iso(d)" class="@(d == Model.SelectedDate ? dayOn : dayOff)">
+                    <span class="text-[11px] font-medium opacity-80">@(i == 0 ? "Hôm nay" : Fmt.WeekdayShort(d))</span>
+                    <span class="text-lg font-bold leading-none tabular">@d.Day</span>
+                    <span class="text-[10px] opacity-70">th<!---->@d.Month</span>
+                </button>
+            }
+        </div>
+
+        <div id="showtime-list">
+            <partial name="_Showtimes" model="Model.Showtimes" />
+        </div>
+    </section>
+
+    <partial name="_TrailerModal" />
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            var day = 'flex min-w-17 shrink-0 flex-col items-center gap-0.5 rounded-xl border px-3.5 py-2.5 transition-all';
+            var dayOn = day + ' border-brand-500 bg-brand-500 text-on-brand shadow-[0_8px_24px_-10px_rgba(229, 9, 20,.7)]';
+            var dayOff = day + ' border-ink-700 text-muted hover:border-ink-600 hover:bg-ink-850 hover:text-cream';
+            var requestNo = 0;
+
+            $('[data-date]').on('click', function () {
+                var date = $(this).attr('data-date');
+                $('[data-date]').each(function () {
+                    $(this).attr('class', $(this).attr('data-date') === date ? dayOn : dayOff);
+                });
+
+                var current = ++requestNo;
+                $.ajax({
+                    url: '/Movies/Showtimes',
+                    data: { id: '@movie.Id', date: date },
+                    success: function (response) {
+                        if (current === requestNo) $('#showtime-list').html(response);
+                    }
+                });
+            });
+        });
+    </script>
+}

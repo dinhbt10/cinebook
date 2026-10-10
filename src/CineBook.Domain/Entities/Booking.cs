@@ -5,7 +5,6 @@ namespace CineBook.Domain.Entities;
 
 public class Booking : BaseEntity
 {
-    /// <summary>Mã đặt vé khách đọc được, ví dụ CB8F2K9L.</summary>
     public string Code { get; set; } = null!;
 
     public Guid UserId { get; set; }
@@ -23,7 +22,6 @@ public class Booking : BaseEntity
     public Guid? PromotionId { get; set; }
     public Promotion? Promotion { get; set; }
 
-    /// <summary>BR-02, BR-09: mốc hết hạn giữ ghế, frontend dùng để đếm ngược.</summary>
     public DateTime HoldExpiresAtUtc { get; set; }
 
     public DateTime? PaidAtUtc { get; set; }
@@ -46,7 +44,6 @@ public class BookingCombo
     public decimal UnitPrice { get; set; }
 }
 
-/// <summary>Một vé cho một ghế. Mã QR được ký để chống làm giả (BR-11).</summary>
 public class Ticket : BaseEntity
 {
     public Guid BookingId { get; set; }
@@ -58,7 +55,6 @@ public class Ticket : BaseEntity
     public string QrSignature { get; set; } = null!;
     public TicketStatus Status { get; set; } = TicketStatus.Valid;
 
-    /// <summary>BR-12: một vé chỉ được check-in đúng một lần.</summary>
     public DateTime? CheckedInAtUtc { get; set; }
     public Guid? CheckedInByUserId { get; set; }
 }
@@ -68,10 +64,8 @@ public class Payment : BaseEntity
     public Guid BookingId { get; set; }
     public Booking Booking { get; set; } = null!;
 
-    /// <summary>"Mock", "VNPay", "MoMo"…</summary>
     public string Provider { get; set; } = null!;
 
-    /// <summary>BR-08: mã giao dịch của cổng, có ràng buộc duy nhất để chống xử lý trùng.</summary>
     public string ProviderTxnId { get; set; } = null!;
 
     public decimal Amount { get; set; }

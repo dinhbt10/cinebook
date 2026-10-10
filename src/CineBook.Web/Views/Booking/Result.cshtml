@@ -1,0 +1,155 @@
+@model BookingResultViewModel
+@if (Model.Booking == null)
+{
+    <div class="mx-auto max-w-md px-4 py-20 text-center">
+        @Html.Icon("x-circle", 44, "mx-auto mb-4 text-velvet-400")
+        <h1 class="mb-2 text-xl font-bold">Không xem được đơn hàng</h1>
+        <p class="mb-6 text-sm text-faint">@Model.ErrorMessage</p>
+        <a asp-controller="Tickets" asp-action="Index"><button type="button" class="@Ui.Button("secondary")">Về Vé của tôi</button></a>
+    </div>
+    return;
+}
+@{
+    var data = Model.Booking;
+    var paid = Model.Paid;
+    var pending = Model.Pending;
+    var title = paid ? "Đặt vé thành công"
+        : pending ? "Đang chờ xác nhận"
+        : data.Status == "Refunded" ? "Đã hoàn tiền"
+        : "Đơn hàng chưa hoàn tất";
+    string message;
+    if (paid)
+    {
+        message = "Vé điện tử đã sẵn sàng trong mục Vé của tôi.";
+    }
+    else if (pending)
+    {
+        message = "Hệ thống đang chờ cổng thanh toán xác nhận. Trang sẽ tự cập nhật.";
+    }
+    else if (Model.FailedAtGateway)
+    {
+        message = !string.IsNullOrEmpty(Model.VnpCode) && Fmt.VnPayMessage.ContainsKey(Model.VnpCode)
+            ? Fmt.VnPayMessage[Model.VnpCode]
+            : "Giao dịch không thành công.";
+    }
+    else
+    {
+        message = data.CancelReason ?? "Ghế đã được trả lại. Bạn có thể chọn lại suất chiếu khác.";
+    }
+    var seatLabels = string.Join(", ", data.Seats.Select(s => s.Label));
+}
+<div class="mx-auto max-w-lg px-4 py-14" data-result="@data.Id" data-status="@data.Status">
+    <div class="surface overflow-hidden">
+        <div class="relative flex flex-col items-center gap-4 px-8 pb-7 pt-9 text-center">
+            <div class="absolute inset-0 -z-10 screen-glow"></div>
+
+            <span class="@(paid ? "text-mint-400" : pending ? "animate-pulse text-brand-400" : "text-velvet-400")">@Html.Icon(paid ? "check-circle-2" : pending ? "clock-3" : "x-circle", 54)</span>
+
+            <div>
+                <h1 class="font-display text-2xl font-extrabold">@title</h1>
+                <p class="mt-2 text-sm text-faint">@message</p>
+            </div>
+        </div>
+
+        <div class="relative flex items-center">
+            <span class="h-5 w-5 shrink-0 -translate-x-1/2 rounded-full bg-ink-950"></span>
+            <span class="dashed-cut h-px flex-1"></span>
+            <span class="h-5 w-5 shrink-0 translate-x-1/2 rounded-full bg-ink-950"></span>
+        </div>
+
+        <div class="flex flex-col gap-5 px-8 pb-8 pt-6">
+            <dl class="text-[13px]">
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Mã đặt vé</dt>
+                    <dd class="text-right"><span class="font-mono text-base font-bold tracking-wider text-brand-400">@data.Code</span></dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Phim</dt>
+                    <dd class="text-right"><b class="text-cream">@data.MovieTitle</b></dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Rạp</dt>
+                    <dd class="text-right">@data.CinemaName · @data.RoomName</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Suất chiếu</dt>
+                    <dd class="text-right">@Fmt.FullDateTime(data.StartsAtUtc)</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Ghế</dt>
+                    <dd class="text-right"><span class="font-mono font-semibold text-cream">@seatLabels</span></dd>
+                </div>
+                @if (data.DiscountAmount > 0)
+                {
+                    <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                        <dt class="shrink-0 text-faint">Giảm giá</dt>
+                        <dd class="text-right"><span class="text-mint-400">−@Fmt.Money(data.DiscountAmount)</span></dd>
+                    </div>
+                }
+                <div class="flex items-baseline justify-between gap-4 border-b border-ink-800 py-2.5 last:border-0">
+                    <dt class="shrink-0 text-faint">Tổng tiền</dt>
+                    <dd class="text-right"><b class="font-display text-lg text-cream tabular">@Fmt.Money(data.Total)</b></dd>
+                </div>
+            </dl>
+
+            <div class="flex flex-wrap justify-center gap-3">
+                @if (Model.CanRetry)
+                {
+                    <a asp-action="Index" asp-route-id="@data.ShowtimeId"><button type="button" class="@Ui.Button()">@Html.Icon("credit-card", 15) Thanh toán lại</button></a>
+                    <button type="button" data-cancel-open class="@Ui.Button("ghost")">@Html.Icon("x", 15) Hủy đặt vé</button>
+                }
+                @if (paid)
+                {
+                    <a asp-controller="Tickets" asp-action="Index"><button type="button" class="@Ui.Button()">@Html.Icon("qr-code", 15) Xem mã QR</button></a>
+                }
+                <a asp-controller="Movies" asp-action="Index"><button type="button" class="@Ui.Button("secondary")">@Html.Icon("ticket", 15) Tiếp tục đặt vé</button></a>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.CanRetry)
+    {
+        var body = new Microsoft.AspNetCore.Html.HtmlString("<p>Ghế <b class=\"font-mono text-cream\">" + Html.Encode(seatLabels) +
+            "</b> đang giữ cho bạn sẽ được trả lại ngay cho người khác. Đơn <b class=\"font-mono text-cream\">" + Html.Encode(data.Code) +
+            "</b> đã hủy thì không khôi phục được.</p>");
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogModel { Id = "cancel-dialog", Title = "Hủy đặt vé?", ConfirmLabel = "Hủy đặt vé", CancelLabel = "Quay lại", Form = "#cancel-form", Body = body, Error = Model.CancelError })" />
+    }
+</div>
+
+@if (Model.CanRetry)
+{
+    <form id="cancel-form" asp-action="Cancel" asp-route-id="@data.Id" method="post">
+        <input type="hidden" name="vnp_ResponseCode" value="@Model.VnpCode" />
+        <input type="hidden" name="payment" value="@(Model.MockFailed ? "failed" : null)" />
+    </form>
+}
+
+@section Scripts {
+    <script>
+        $(function () {
+            var $result = $('[data-result]');
+            var id = $result.attr('data-result');
+            var status = $result.attr('data-status');
+
+            $('[data-cancel-open]').on('click', function () {
+                $('#cancel-dialog [data-confirm-error]').hide();
+                CB.openModal('#cancel-dialog');
+            });
+
+            if ($('#cancel-dialog [data-confirm-error]').text().trim()) {
+                CB.openModal('#cancel-dialog');
+            }
+
+            if (status !== 'Pending') return;
+
+            var timer = setInterval(function () {
+                $.getJSON('/Booking/Status/' + id, function (booking) {
+                    if (booking.status !== status) {
+                        clearInterval(timer);
+                        location.reload();
+                    }
+                });
+            }, 1500);
+        });
+    </script>
+}

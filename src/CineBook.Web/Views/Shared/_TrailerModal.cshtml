@@ -1,0 +1,14 @@
+<div id="trailer-modal" data-modal role="dialog" aria-modal="true"
+     style="background: var(--color-scrim); display: none"
+     class="fixed inset-0 z-50 items-center justify-center p-4 backdrop-blur-md">
+    <div class="w-full max-w-4xl animate-rise overflow-hidden rounded-2xl border border-ink-700 bg-ink-900">
+        <div class="flex items-center justify-between gap-4 border-b border-ink-800 px-5 py-3.5">
+            <p class="truncate font-display font-bold" data-trailer-title></p>
+            <button type="button" data-modal-close aria-label="Đóng"
+                    class="rounded-lg p-1.5 text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                @Html.Icon("x", 18)
+            </button>
+        </div>
+        <div class="aspect-video w-full bg-black" data-trailer-body></div>
+    </div>
+</div>

@@ -1,0 +1,7 @@
+@{
+    var errors = ViewData.ModelState[string.Empty]?.Errors;
+}
+@if (errors != null && errors.Count > 0)
+{
+    <div class="@Ui.ErrorNote">@errors[0].ErrorMessage</div>
+}

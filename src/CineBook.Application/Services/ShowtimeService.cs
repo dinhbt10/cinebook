@@ -17,12 +17,6 @@ public class ShowtimeService(
 {
     private readonly BookingOptions _opt = options.Value;
 
-    /// <summary>
-    /// Tạo suất chiếu. Áp BR-16 (không chồng giờ trong cùng phòng),
-    /// BR-17 (tự tính giờ kết thúc) và sinh sẵn một dòng ShowtimeSeat cho mỗi ghế
-    /// với giá chốt luôn: giá quản trị nhập cho từng loại ghế, hoặc tính theo BR-18
-    /// nếu không nhập.
-    /// </summary>
     public async Task<Result<Guid>> CreateAsync(
         CreateShowtimeRequest req, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
@@ -35,7 +29,6 @@ public class ShowtimeService(
             .FirstOrDefaultAsync(r => r.Id == req.RoomId, ct);
         if (room is null) return Result<Guid>.Fail("ROOM_NOT_FOUND", "Không tìm thấy phòng chiếu.");
 
-        // BR-19: quản lý rạp chỉ xếp lịch cho phòng của rạp mình.
         if (scopeCinemaId is { } scope && room.CinemaId != scope)
             return Result<Guid>.Fail(ForbiddenCinema, ForbiddenCinemaMessage);
 
@@ -45,12 +38,10 @@ public class ShowtimeService(
         if (req.SeatPrices is { } p && (p.Standard <= 0 || p.Vip <= 0 || p.Couple <= 0))
             return Result<Guid>.Fail("BAD_PRICE", "Giá vé của mọi loại ghế phải lớn hơn 0.");
 
-        // BR-17: giờ kết thúc = giờ bắt đầu + thời lượng phim + thời gian dọn phòng.
         var endsAtUtc = req.StartsAtUtc
             .AddMinutes(movie.DurationMinutes)
             .AddMinutes(_opt.RoomCleanupMinutes);
 
-        // BR-16: một phòng không được có hai suất chồng giờ.
         var overlapped = await db.Showtimes.AsNoTracking()
             .Where(s => s.RoomId == req.RoomId && !s.IsCancelled)
             .Where(s => s.StartsAtUtc < endsAtUtc && s.EndsAtUtc > req.StartsAtUtc)
@@ -74,7 +65,6 @@ public class ShowtimeService(
         };
         db.Showtimes.Add(showtime);
 
-        // Sinh sẵn ghế cho suất: mỗi ghế đang hoạt động một dòng, giá chốt luôn.
         var seats = await db.Seats.AsNoTracking()
             .Where(s => s.RoomId == room.Id && s.IsActive)
             .ToListAsync(ct);
@@ -102,18 +92,12 @@ public class ShowtimeService(
         return Result<Guid>.Ok(showtime.Id);
     }
 
-    /// <summary>
-    /// Giá từng loại ghế tính theo bảng giá (BR-18) cho một phòng và giờ chiếu, để form
-    /// tạo suất điền sẵn. Quản trị xem được giá thật khách sẽ trả và sửa lại trước khi lưu.
-    /// </summary>
     public async Task<Result<SeatTypePrices>> PreviewPricesAsync(
         Guid roomId, DateTime startsAtUtc, decimal basePrice, CancellationToken ct = default)
     {
         var room = await db.Rooms.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roomId, ct);
         if (room is null) return Result<SeatTypePrices>.Fail("ROOM_NOT_FOUND", "Không tìm thấy phòng chiếu.");
 
-        // Tham số query có hậu tố Z được ASP.NET đọc thành giờ máy chủ (Kind = Local),
-        // phải đổi về UTC trước khi cộng 7 tiếng ra giờ Việt Nam.
         var utc = startsAtUtc.Kind == DateTimeKind.Local
             ? startsAtUtc.ToUniversalTime()
             : DateTime.SpecifyKind(startsAtUtc, DateTimeKind.Utc);
@@ -150,7 +134,6 @@ public class ShowtimeService(
         return Result.Ok();
     }
 
-    /// <summary>Danh sách suất chiếu của một phim theo ngày (giờ Việt Nam).</summary>
     public async Task<IReadOnlyList<ShowtimeListItemDto>> SearchAsync(
         Guid? movieId, Guid? cinemaId, DateOnly? localDate, CancellationToken ct = default)
     {
@@ -169,7 +152,6 @@ public class ShowtimeService(
             q = q.Where(s => s.StartsAtUtc >= fromUtc && s.StartsAtUtc < toUtc);
         }
 
-        // BR-03: ẩn suất đã qua giờ hoặc sắp bắt đầu.
         var nowUtc = clock.UtcNow;
         var cutoff = nowUtc.AddMinutes(_opt.MinutesBeforeStartToBlock);
         q = q.Where(s => s.StartsAtUtc > cutoff);
@@ -188,10 +170,6 @@ public class ShowtimeService(
             .ToListAsync(ct);
     }
 
-    /// <summary>
-    /// Lịch chiếu cho trang quản trị: khác <see cref="SearchAsync"/> ở chỗ gồm cả suất chưa
-    /// mở bán, đã qua giờ và đã hủy — quản trị phải thấy suất vừa bấm "ngừng bán" để mở lại.
-    /// </summary>
     public async Task<IReadOnlyList<ShowtimeListItemDto>> SearchForAdminAsync(
         Guid? cinemaId, DateOnly localDate, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
@@ -202,7 +180,6 @@ public class ShowtimeService(
         var q = db.Showtimes.AsNoTracking()
             .Where(s => s.StartsAtUtc >= fromUtc && s.StartsAtUtc < toUtc);
 
-        // BR-19: quản lý rạp chỉ thấy rạp mình, bỏ qua rạp chọn trên giao diện.
         var cid = scopeCinemaId ?? cinemaId;
         if (cid is { } c) q = q.Where(s => s.Room.CinemaId == c);
 
@@ -220,7 +197,6 @@ public class ShowtimeService(
             .ToListAsync(ct);
     }
 
-    /// <summary>BR-15: hủy suất chiếu thì mọi vé đã bán được hoàn 100%.</summary>
     public async Task<Result<int>> CancelAsync(
         Guid showtimeId, string reason, Guid? scopeCinemaId = null, Guid? actorUserId = null,
         CancellationToken ct = default)
@@ -252,12 +228,10 @@ public class ShowtimeService(
 
             if (b.Status == BookingStatus.Pending)
             {
-                // Đơn chưa trả tiền: chỉ đóng lại. Nếu tiền về sau đó, luồng webhook tự hoàn.
                 b.Status = BookingStatus.Cancelled;
                 continue;
             }
 
-            // BR-15: vé đã bán được hoàn 100%, không áp chính sách giờ hủy của khách.
             paidCount++;
             b.Status = BookingStatus.Refunded;
             var refund = await payments.RefundAsync(b.Id, 1.0m, b.CancelReason, actorUserId, ct);

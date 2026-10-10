@@ -30,7 +30,7 @@ public class AuthService(
             FullName = req.FullName.Trim(),
             Phone = req.Phone?.Trim(),
             Role = UserRole.Customer,
-            EmailVerified = true // Bản BTL bỏ qua bước xác thực email.
+            EmailVerified = true
         };
 
         db.Users.Add(user);

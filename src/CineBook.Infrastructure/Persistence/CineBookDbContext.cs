@@ -31,7 +31,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder b)
     {
-        // ---------- Người dùng ----------
         b.Entity<User>(e =>
         {
             e.HasIndex(x => x.Email).IsUnique();
@@ -42,7 +41,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ---------- Phim ----------
         b.Entity<Movie>(e =>
         {
             e.Property(x => x.Title).HasMaxLength(256);
@@ -56,7 +54,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
             e.HasOne(x => x.Genre).WithMany(g => g.MovieGenres).HasForeignKey(x => x.GenreId);
         });
 
-        // ---------- Rạp, phòng, ghế ----------
         b.Entity<Room>(e =>
             e.HasOne(x => x.Cinema).WithMany(c => c.Rooms).HasForeignKey(x => x.CinemaId));
 
@@ -68,21 +65,17 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
             e.Ignore(x => x.Label);
         });
 
-        // ---------- Suất chiếu ----------
         b.Entity<Showtime>(e =>
         {
             e.HasOne(x => x.Movie).WithMany(m => m.Showtimes).HasForeignKey(x => x.MovieId);
             e.HasOne(x => x.Room).WithMany(r => r.Showtimes).HasForeignKey(x => x.RoomId);
             e.Property(x => x.BasePrice).HasPrecision(12, 2);
-            // BR-16: dùng để kiểm tra hai suất chồng giờ trong cùng một phòng.
             e.HasIndex(x => new { x.RoomId, x.StartsAtUtc });
             e.HasIndex(x => new { x.MovieId, x.StartsAtUtc });
         });
 
-        // ---------- Ghế theo suất: trái tim của việc giữ ghế ----------
         b.Entity<ShowtimeSeat>(e =>
         {
-            // BR-01: khoá chính ghép đảm bảo một ghế chỉ có đúng một dòng trong một suất.
             e.HasKey(x => new { x.ShowtimeId, x.SeatId });
             e.HasOne(x => x.Showtime).WithMany(s => s.Seats).HasForeignKey(x => x.ShowtimeId)
              .OnDelete(DeleteBehavior.Cascade);
@@ -92,17 +85,14 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
              .OnDelete(DeleteBehavior.SetNull);
             e.Property(x => x.Price).HasPrecision(12, 2);
 
-            // Truy vấn sơ đồ ghế và câu UPDATE giành ghế đều lọc theo hai cột này.
             e.HasIndex(x => new { x.ShowtimeId, x.Status });
             e.HasIndex(x => x.HoldExpiresAtUtc);
 
-            // xmin của PostgreSQL làm dấu kiểm tra tranh chấp ghi.
             e.Property(x => x.Version)
              .HasColumnName("xmin").HasColumnType("xid")
              .ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
         });
 
-        // ---------- Đơn hàng ----------
         b.Entity<Booking>(e =>
         {
             e.HasIndex(x => x.Code).IsUnique();
@@ -126,7 +116,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
             e.Property(x => x.UnitPrice).HasPrecision(12, 2);
         });
 
-        // ---------- Vé ----------
         b.Entity<Ticket>(e =>
         {
             e.HasIndex(x => x.Code).IsUnique();
@@ -136,7 +125,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ---------- Thanh toán ----------
         b.Entity<Payment>(e =>
         {
             e.HasOne(x => x.Booking).WithMany(bk => bk.Payments).HasForeignKey(x => x.BookingId);
@@ -144,11 +132,9 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
             e.Property(x => x.RefundedAmount).HasPrecision(12, 2);
             e.Property(x => x.Provider).HasMaxLength(32);
             e.Property(x => x.ProviderTxnId).HasMaxLength(128);
-            // BR-08: cùng một mã giao dịch của cổng chỉ được ghi nhận một lần.
             e.HasIndex(x => new { x.Provider, x.ProviderTxnId }).IsUnique();
         });
 
-        // ---------- Bắp nước, khuyến mãi, giá ----------
         b.Entity<Combo>(e => e.Property(x => x.Price).HasPrecision(12, 2));
         b.Entity<Promotion>(e =>
         {
@@ -158,7 +144,6 @@ public class CineBookDbContext(DbContextOptions<CineBookDbContext> options)
             e.Property(x => x.MaxDiscount).HasPrecision(12, 2);
             e.Property(x => x.MinOrderAmount).HasPrecision(12, 2);
         });
-        // Kho voucher của khách: mỗi người lưu một voucher tối đa một lần.
         b.Entity<SavedVoucher>(e =>
         {
             e.HasKey(x => new { x.UserId, x.PromotionId });

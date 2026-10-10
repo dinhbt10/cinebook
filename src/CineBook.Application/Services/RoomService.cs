@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CineBook.Application.Services;
 
-/// <summary>
-/// Tạo phòng chiếu bằng số hàng × số ghế mỗi hàng và sinh ghế tự động —
-/// bản đơn giản thay cho trình thiết kế sơ đồ ghế kéo thả (§9.2 đánh giá công nghệ).
-/// </summary>
 public class RoomService(IAppDbContext db)
 {
     public const int MaxRows = 26;
@@ -18,7 +14,6 @@ public class RoomService(IAppDbContext db)
     public async Task<Result<Guid>> CreateAsync(
         CreateRoomRequest req, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
-        // BR-19: quản lý rạp chỉ thêm phòng cho rạp mình.
         if (scopeCinemaId is { } scope && req.CinemaId != scope)
             return Result<Guid>.Fail(ShowtimeService.ForbiddenCinema, "Bạn chỉ thêm được phòng cho rạp mình phụ trách.");
 
@@ -53,8 +48,6 @@ public class RoomService(IAppDbContext db)
             var label = ((char)('A' + r)).ToString();
             var isVipRow = r + 1 >= vipFromRow && r + 1 <= vipToRow;
 
-            // Hàng cuối cùng là ghế đôi — quy ước phổ biến của rạp Việt Nam.
-            // Mỗi ghế đôi chiếm chỗ của hai ghế thường nên hàng này chỉ có một nửa số ghế.
             var isCoupleRow = r == rowCount - 1 && rowCount > 1;
             var count = isCoupleRow ? Math.Max(1, seatsPerRow / 2) : seatsPerRow;
 
@@ -73,7 +66,6 @@ public class RoomService(IAppDbContext db)
         }
     }
 
-    /// <summary>BR-06: đánh dấu ghế hỏng, ghế này sẽ không được đưa vào suất chiếu mới.</summary>
     public async Task<Result> SetSeatMaintenanceAsync(
         Guid seatId, bool broken, Guid? scopeCinemaId = null, CancellationToken ct = default)
     {
@@ -90,7 +82,6 @@ public class RoomService(IAppDbContext db)
         await db.Rooms.AsNoTracking()
             .Where(r => r.CinemaId == cinemaId && r.IsActive)
             .OrderBy(r => r.Name)
-            // Ghế bảo trì không được đưa vào suất chiếu mới nên không tính vào sức chứa.
             .Select(r => new RoomDto(r.Id, r.Name, r.RoomType.ToString(), r.Seats.Count(x => x.IsActive)))
             .ToListAsync(ct);
 }

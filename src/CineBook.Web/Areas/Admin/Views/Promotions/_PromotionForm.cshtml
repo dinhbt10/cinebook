@@ -1,0 +1,115 @@
+@model PromotionFormViewModel
+@using System.Globalization
+@{
+    var usageHint = Model.IsEditing
+        ? "Đã dùng " + Model.UsedCount + ". Để trống nếu không giới hạn"
+        : "Để trống nếu không giới hạn";
+}
+<h3 class="mb-5 text-lg font-bold">@(Model.IsEditing ? "Sửa voucher " + Model.OriginalCode : "Tạo voucher mới")</h3>
+<form asp-action="@(Model.IsEditing ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post" data-loading class="flex flex-col gap-4">
+    <partial name="_FormError" />
+    @if (Model.Locked)
+    {
+        <p class="text-[13px] text-faint">Voucher đã có đơn sử dụng nên không đổi được mã, loại giảm và giá trị.</p>
+        <input type="hidden" name="Code" value="@Model.Code" />
+        <input type="hidden" name="DiscountType" value="@Model.DiscountType" />
+        <input type="hidden" name="Value" value="@Model.Value?.ToString("0.##", CultureInfo.InvariantCulture)" />
+    }
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Mã voucher</span>
+            @if (Model.Locked)
+            {
+                <input asp-for="Code" disabled class="@Ui.Input("peer font-mono")" />
+            }
+            else
+            {
+                <input asp-for="Code" class="@Ui.Input("peer font-mono")" />
+            }
+            <span asp-validation-for="Code" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">3–32 ký tự: chữ không dấu, số, - hoặc _. Tự viết hoa.</span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Tên hiển thị</span>
+            <input asp-for="Name" maxlength="128" placeholder="Ví dụ: Thứ ba vui vẻ — giảm 30.000đ" class="@Ui.Input()" />
+            <span asp-validation-for="Name" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Loại giảm</span>
+            @if (Model.Locked)
+            {
+                <select asp-for="DiscountType" disabled class="@Ui.Select()">
+                    <option value="Percentage">Theo phần trăm</option>
+                    <option value="FixedAmount">Số tiền cố định</option>
+                </select>
+            }
+            else
+            {
+                <select asp-for="DiscountType" class="@Ui.Select()">
+                    <option value="Percentage">Theo phần trăm</option>
+                    <option value="FixedAmount">Số tiền cố định</option>
+                </select>
+            }
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label" data-value-label>@(Model.IsPercent ? "Phần trăm giảm (%)" : "Số tiền giảm (đồng)")</span>
+            @if (Model.Locked)
+            {
+                <input asp-for="Value" asp-format="{0:0.##}" type="number" disabled min="@(Model.IsPercent ? "1" : "1000")" max="@(Model.IsPercent ? "100" : null)" step="@(Model.IsPercent ? "1" : "1000")" class="@Ui.Input()" />
+            }
+            else
+            {
+                <input asp-for="Value" asp-format="{0:0.##}" type="number" min="@(Model.IsPercent ? "1" : "1000")" max="@(Model.IsPercent ? "100" : null)" step="@(Model.IsPercent ? "1" : "1000")" class="@Ui.Input()" />
+            }
+            <span asp-validation-for="Value" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+
+        <label class="flex flex-col gap-1.5" data-max-discount style="@(Model.IsPercent ? null : "display: none")">
+            <span class="@Ui.Label">Giảm tối đa (đồng)</span>
+            <input asp-for="MaxDiscount" asp-format="{0:0.##}" type="number" min="1000" step="1000" class="@Ui.Input("peer")" />
+            <span asp-validation-for="MaxDiscount" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Để trống nếu không giới hạn</span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Đơn tối thiểu (đồng)</span>
+            <input asp-for="MinOrderAmount" asp-format="{0:0.##}" type="number" min="0" step="1000" class="@Ui.Input("peer")" />
+            <span asp-validation-for="MinOrderAmount" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">Tính trên tiền ghế cộng bắp nước</span>
+        </label>
+
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Bắt đầu (giờ Việt Nam)</span>
+            <input asp-for="StartsLocal" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" class="@Ui.Input()" />
+            <span asp-validation-for="StartsLocal" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Kết thúc (giờ Việt Nam)</span>
+            <input asp-for="EndsLocal" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" class="@Ui.Input()" />
+            <span asp-validation-for="EndsLocal" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Tổng lượt dùng</span>
+            <input asp-for="UsageLimit" min="@Math.Max(1, Model.UsedCount)" class="@Ui.Input("peer")" />
+            <span asp-validation-for="UsageLimit" class="@Ui.FieldError empty:hidden"></span>
+            <span class="@Ui.Hint peer-[.input-validation-error]:hidden">@usageHint</span>
+        </label>
+        <label class="flex flex-col gap-1.5">
+            <span class="@Ui.Label">Số lượt mỗi khách</span>
+            <input asp-for="PerUserLimit" min="1" class="@Ui.Input()" />
+            <span asp-validation-for="PerUserLimit" class="@Ui.FieldError empty:hidden"></span>
+        </label>
+    </div>
+
+    <label class="flex items-center gap-2.5 text-sm text-muted">
+        <input asp-for="IsActive" class="h-4 w-4 accent-[#F0A62F]" />
+        Đang áp dụng
+    </label>
+
+    <div class="flex justify-end gap-2 pt-1">
+        <button type="button" data-modal-close class="@Ui.Button("ghost")">Đóng</button>
+        <button type="submit" class="@Ui.Button()">@(Model.IsEditing ? "Lưu thay đổi" : "Tạo voucher")</button>
+    </div>
+</form>

@@ -1,0 +1,196 @@
+@model List<MovieListItemDto>
+@{
+    var statuses = new Dictionary<string, string>
+    {
+        ["Draft"] = "Bản nháp",
+        ["ComingSoon"] = "Sắp chiếu",
+        ["NowShowing"] = "Đang chiếu",
+        ["Ended"] = "Đã kết thúc",
+    };
+}
+<div class="p-6 lg:p-8">
+    <div class="mb-6 flex items-center justify-between gap-4">
+        <h1 class="text-2xl font-extrabold">Quản lý phim</h1>
+        <button type="button" data-movie-create class="@Ui.Button()">@Html.Icon("plus", 16) Thêm phim</button>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="mb-4" data-page-error><div class="@Ui.ErrorNote">@ViewBag.Error</div></div>
+    }
+    @if (ViewBag.Notice != null)
+    {
+        <p class="mb-4 text-[13px] font-medium text-mint-400">@ViewBag.Notice</p>
+    }
+
+    <div class="surface overflow-x-auto">
+        <table class="w-full min-w-[680px] text-sm">
+            <thead>
+                <tr class="border-b border-ink-700 text-left text-[11px] uppercase tracking-wide text-faint">
+                    <th class="px-5 py-3.5 font-semibold">Phim</th>
+                    <th class="px-5 py-3.5 font-semibold">Thời lượng</th>
+                    <th class="px-5 py-3.5 font-semibold">Nhãn tuổi</th>
+                    <th class="px-5 py-3.5 font-semibold">Trạng thái</th>
+                    <th class="px-5 py-3.5"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Model)
+                {
+                    var genres = string.Join(", ", m.Genres);
+                    var tone = m.Status == "NowShowing" ? "mint" : m.Status == "ComingSoon" ? "brand" : "faint";
+                    <tr class="border-b border-ink-800 last:border-0">
+                        <td class="px-5 py-3">
+                            <div class="flex items-center gap-3">
+                                @if (!string.IsNullOrEmpty(m.PosterUrl))
+                                {
+                                    <img src="@m.PosterUrl" alt="" class="h-12 w-8 rounded object-cover" />
+                                }
+                                <div class="min-w-0">
+                                    <p class="truncate font-medium">@m.Title</p>
+                                    <p class="text-[12px] text-faint">@(genres == "" ? "—" : genres)</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-5 py-3 tabular">@m.DurationMinutes phút</td>
+                        <td class="px-5 py-3"><span class="@Ui.Badge()">@m.AgeRating</span></td>
+                        <td class="px-5 py-3">
+                            <span class="@Ui.Badge(tone)">@Fmt.Label(statuses, m.Status)</span>
+                        </td>
+                        <td class="px-5 py-3">
+                            <div class="flex justify-end gap-1">
+                                <button type="button" title="Sửa" data-movie-edit="@m.Id"
+                                        class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-cream">
+                                    @Html.Icon("pencil", 15)
+                                </button>
+                                <button type="button" title="Xóa" data-movie-delete="@m.Id" data-title="@m.Title"
+                                        class="rounded-lg p-2 text-faint transition-colors hover:bg-ink-800 hover:text-velvet-400">
+                                    @Html.Icon("trash-2", 15)
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div id="movie-modal" data-modal style="background: var(--color-scrim); display: none"
+         class="fixed inset-0 z-50 items-start justify-center overflow-y-auto p-4 backdrop-blur-sm">
+        <div id="movie-form-host" class="surface my-8 w-full animate-rise p-6 max-w-3xl"></div>
+    </div>
+
+    <form id="delete-form" asp-action="Delete" method="post" class="hidden">
+        <input type="hidden" name="id" />
+    </form>
+
+    <partial name="_ConfirmDialog" model='new ConfirmDialogModel { Id = "delete-dialog", Title = "Xoá phim", ConfirmLabel = "Xoá phim", Form = "#delete-form" }' />
+</div>
+
+@section Styles {
+    <style>
+        html[data-theme] {
+            --ck-font-face: var(--font-sans);
+            --ck-font-size-base: 13px;
+            --ck-border-radius: 8px;
+            --ck-inner-shadow: none;
+            --ck-drop-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.45);
+            --ck-focus-ring: 1px solid var(--color-brand-600);
+            --ck-focus-outer-shadow: none;
+            --ck-color-shadow-inner: transparent;
+            --ck-color-shadow-drop: rgba(0, 0, 0, 0.25);
+            --ck-color-base-background: var(--color-ink-900);
+            --ck-color-base-foreground: var(--color-ink-800);
+            --ck-color-base-border: var(--color-ink-600);
+            --ck-color-base-text: var(--color-cream);
+            --ck-color-base-active: var(--color-brand-500);
+            --ck-color-base-active-focus: var(--color-brand-400);
+            --ck-color-text: var(--color-cream);
+            --ck-color-focus-border: var(--color-brand-600);
+            --ck-color-engine-placeholder-text: var(--color-faint);
+            --ck-color-toolbar-background: var(--color-ink-800);
+            --ck-color-toolbar-border: var(--color-ink-600);
+            --ck-color-button-default-background: transparent;
+            --ck-color-button-default-hover-background: var(--color-ink-700);
+            --ck-color-button-default-active-background: var(--color-ink-700);
+            --ck-color-button-on-background: var(--color-brand-950);
+            --ck-color-button-on-hover-background: var(--color-brand-950);
+            --ck-color-button-on-active-background: var(--color-brand-950);
+            --ck-color-button-on-color: var(--color-brand-400);
+            --ck-color-button-action-background: var(--color-brand-500);
+            --ck-color-button-action-hover-background: var(--color-brand-400);
+            --ck-color-button-action-text: var(--color-on-brand);
+            --ck-color-button-save: var(--color-mint-400);
+            --ck-color-button-cancel: var(--color-velvet-400);
+            --ck-color-split-button-hover-background: var(--color-ink-700);
+            --ck-color-split-button-hover-border: var(--color-ink-600);
+            --ck-color-dropdown-panel-background: var(--color-ink-850);
+            --ck-color-dropdown-panel-border: var(--color-ink-600);
+            --ck-color-panel-background: var(--color-ink-850);
+            --ck-color-panel-border: var(--color-ink-600);
+            --ck-color-list-background: var(--color-ink-850);
+            --ck-color-list-button-hover-background: var(--color-ink-800);
+            --ck-color-list-button-on-background: var(--color-brand-950);
+            --ck-color-list-button-on-background-focus: var(--color-brand-950);
+            --ck-color-list-button-on-text: var(--color-brand-400);
+            --ck-color-input-background: var(--color-ink-900);
+            --ck-color-input-border: var(--color-ink-600);
+            --ck-color-input-text: var(--color-cream);
+            --ck-color-input-disabled-background: var(--color-ink-800);
+            --ck-color-labeled-field-label-background: var(--color-ink-850);
+            --ck-color-tooltip-background: var(--color-ink-700);
+            --ck-color-tooltip-text: var(--color-cream);
+            --ck-color-link-default: var(--color-brand-400);
+            --ck-color-link-selected-background: var(--color-brand-950);
+            --ck-color-link-fake-selection: var(--color-brand-950);
+            --ck-color-widget-blurred-border: var(--color-ink-600);
+            --ck-color-widget-hover-border: var(--color-ink-500);
+            --ck-color-widget-editable-focus-background: var(--color-ink-900);
+        }
+
+        #movie-form-host .ck.ck-editor__top .ck-sticky-panel .ck-toolbar {
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
+        }
+
+        #movie-form-host .ck.ck-editor__main > .ck-editor__editable {
+            min-height: 6rem;
+            max-height: 22rem;
+            padding: 0 0.875rem;
+            color: var(--color-cream);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        #movie-form-host .ck.ck-editor__main > .ck-editor__editable:not(.ck-focused) {
+            border-color: var(--color-ink-600);
+        }
+
+        #movie-form-host .ck.ck-editor__main > .ck-editor__editable.ck-rounded-corners,
+        #movie-form-host .ck-rounded-corners .ck.ck-editor__main > .ck-editor__editable {
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+        }
+
+        .ck-content p { margin: 0.6em 0; }
+        .ck-content h2 { margin: 0.7em 0 0.4em; font-size: 1.2rem; font-weight: 700; }
+        .ck-content h3 { margin: 0.7em 0 0.4em; font-size: 1.05rem; font-weight: 700; }
+        .ck-content ul { margin: 0.6em 0; padding-left: 1.5em; list-style: disc; }
+        .ck-content ol { margin: 0.6em 0; padding-left: 1.5em; list-style: decimal; }
+        .ck-content a { color: var(--color-brand-400); text-decoration: underline; }
+        .ck-content blockquote {
+            margin: 0.6em 0;
+            padding-left: 1em;
+            border-left: 3px solid var(--color-ink-600);
+            color: var(--color-muted);
+            font-style: italic;
+        }
+    </style>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+    <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/translations/vi.js"></script>
+    <script src="~/js/admin-movies.js" asp-append-version="true"></script>
+}

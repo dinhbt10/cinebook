@@ -1,0 +1,59 @@
+@model MovieListItemDto
+@{
+    var coming = Model.Status == "ComingSoon";
+    var genres = Model.Genres.ToList();
+    var tone = Ui.RatingTone.TryGetValue(Model.AgeRating, out var t) ? t : "outline";
+}
+<div class="group flex flex-col gap-3">
+    <div class="lift relative aspect-[2/3] overflow-hidden rounded-xl border border-ink-700 bg-ink-800">
+        <a asp-controller="Movies" asp-action="Details" asp-route-id="@Model.Id" asp-area="" class="absolute inset-0" aria-label="@Model.Title">
+            <div class="h-full w-full transition-transform duration-700 group-hover:scale-[1.07]">
+                <partial name="_Poster" model='new PosterModel { Title = Model.Title, Url = Model.PosterUrl }' />
+            </div>
+        </a>
+
+        <div class="pointer-events-none absolute inset-0 flex flex-col justify-end
+                    bg-gradient-to-t from-ink-950 via-ink-950/55 to-transparent p-3.5
+                    opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            @if (genres.Count > 0)
+            {
+                <p class="mb-2 line-clamp-1 text-[11px] text-muted">@string.Join(" · ", genres)</p>
+            }
+            <div class="pointer-events-auto flex items-center gap-2">
+                <a asp-controller="Movies" asp-action="Details" asp-route-id="@Model.Id" asp-area=""
+                   class="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-[12px] font-semibold text-on-brand
+                          transition-colors hover:bg-brand-400">
+                    @Html.Icon("ticket", 12) @(coming ? "Chi tiết" : "Đặt vé")
+                </a>
+                @if (!string.IsNullOrEmpty(Model.TrailerUrl))
+                {
+                    <button type="button" title="Xem trailer" data-trailer="@Model.TrailerUrl" data-title="@Model.Title"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-ink-600
+                                   bg-ink-900/85 text-cream backdrop-blur transition-colors hover:border-brand-500 hover:text-brand-400">
+                        @Html.Icon("play", 12, null, true)
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="pointer-events-none absolute left-2.5 top-2.5 flex flex-col items-start gap-1.5">
+            <span class="@Ui.Badge(tone)">@Model.AgeRating</span>
+            @if (coming)
+            {
+                <span class="@Ui.Badge("outline", "backdrop-blur")">Sắp chiếu</span>
+            }
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+        <a asp-controller="Movies" asp-action="Details" asp-route-id="@Model.Id" asp-area=""
+           class="line-clamp-2 text-[15px] font-semibold leading-snug transition-colors group-hover:text-brand-400">@Model.Title</a>
+        <div class="flex items-center gap-2.5 text-[12px] text-faint">
+            <span class="flex items-center gap-1">@Html.Icon("clock", 12)@Model.DurationMinutes phút</span>
+            @if (genres.Count > 0)
+            {
+                <span class="truncate">· @string.Join(", ", genres)</span>
+            }
+        </div>
+    </div>
+</div>

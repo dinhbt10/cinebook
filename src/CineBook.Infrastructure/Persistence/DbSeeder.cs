@@ -8,10 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace CineBook.Infrastructure.Persistence;
 
-/// <summary>
-/// Dữ liệu mẫu chạy lại được bất cứ lúc nào — cần thiết khi cả nhóm dùng chung
-/// một cơ sở dữ liệu online (rủi ro #3 trong tài liệu đánh giá công nghệ).
-/// </summary>
 public class DbSeeder(
     CineBookDbContext db,
     IPasswordHasher hasher,
@@ -30,7 +26,6 @@ public class DbSeeder(
 
         logger.LogInformation("Đang tạo dữ liệu mẫu…");
 
-        // ---------- rạp và phòng ----------
         var cgvHaNoi = new Cinema
         {
             Name = "CineBook Cầu Giấy", City = "Hà Nội", District = "Cầu Giấy",
@@ -59,14 +54,12 @@ public class DbSeeder(
             db.Seats.AddRange(RoomService.BuildSeats(room.Id, rowCount, perRow, 4, 7));
         }
 
-        // ---------- người dùng: đủ bốn vai trò ----------
         db.Users.AddRange(
             NewUser("admin@cinebook.vn", "Quản trị hệ thống", UserRole.Admin),
             NewUser("manager@cinebook.vn", "Quản lý rạp Cầu Giấy", UserRole.CinemaManager, cgvHaNoi.Id),
             NewUser("staff@cinebook.vn", "Nhân viên soát vé", UserRole.Staff, cgvHaNoi.Id),
             NewUser("khach@gmail.com", "Nguyễn Văn Khách", UserRole.Customer));
 
-        // ---------- thể loại và phim ----------
         var genres = new[] { "Hành động", "Hài", "Kinh dị", "Tình cảm", "Hoạt hình", "Khoa học viễn tưởng" }
             .Select(n => new Genre { Name = n, Slug = Slugify(n) }).ToArray();
         db.Genres.AddRange(genres);
@@ -86,7 +79,6 @@ public class DbSeeder(
                 "Hành trình của chú chó nhỏ đi tìm chủ dọc bờ biển miền Trung.", genres[4])
         };
 
-        // ---------- bảng giá ----------
         db.PriceRules.AddRange(
             new PriceRule { Name = "Ghế VIP", SeatType = SeatType.Vip, Multiplier = 1.25m, Priority = 10 },
             new PriceRule { Name = "Ghế đôi", SeatType = SeatType.Couple, Multiplier = 2.0m, Priority = 10 },
@@ -96,14 +88,12 @@ public class DbSeeder(
             new PriceRule { Name = "Cuối tuần — thứ bảy", DayOfWeek = 6, Multiplier = 1.2m, Priority = 40 },
             new PriceRule { Name = "Cuối tuần — chủ nhật", DayOfWeek = 0, Multiplier = 1.2m, Priority = 40 });
 
-        // ---------- bắp nước ----------
         db.Combos.AddRange(
             new Combo { Name = "Combo 1 — 1 bắp lớn + 1 nước", Price = 89000m, Description = "Bắp ngọt 60oz và 1 nước ngọt 32oz" },
             new Combo { Name = "Combo 2 — 1 bắp lớn + 2 nước", Price = 109000m, Description = "Dành cho hai người" },
             new Combo { Name = "Combo gia đình", Price = 189000m, Description = "2 bắp lớn, 4 nước ngọt và 1 snack" },
             new Combo { Name = "Nước ngọt 32oz", Price = 35000m });
 
-        // ---------- khuyến mãi ----------
         var nowUtc = DateTime.UtcNow;
         db.Promotions.AddRange(
             new Promotion
@@ -123,7 +113,6 @@ public class DbSeeder(
 
         await db.SaveChangesAsync(ct);
 
-        // ---------- suất chiếu, kèm lịch sử bán vé ----------
         await SeedShowtimesAsync(movies.Where(m => m.Status == MovieStatus.NowShowing).ToList(), rooms, ct);
         await SeedBookingsAsync(ct);
 
@@ -142,7 +131,6 @@ public class DbSeeder(
         int[] slots = [9, 12, 15, 18, 21];
         var todayLocal = DateTime.UtcNow.AddHours(PricingService.VietnamUtcOffsetHours).Date;
 
-        // Bảy ngày đã qua để báo cáo doanh thu có dữ liệu, bảy ngày tới để khách đặt vé.
         for (var day = -7; day < 7; day++)
         {
             for (var i = 0; i < rooms.Count; i++)
@@ -150,16 +138,13 @@ public class DbSeeder(
                 var room = rooms[i];
                 if (!seatsByRoom.TryGetValue(room.Id, out var seats)) continue;
 
-                // Ngày đã qua chỉ dựng ba suất cho nhẹ dữ liệu mẫu.
                 var slotCount = day < 0 ? 3 : slots.Length;
 
                 for (var s = 0; s < slotCount; s++)
                 {
-                    // day có thể âm nên phải đưa phần dư về khoảng không âm.
                     var movie = movies[((day + i + s) % movies.Count + movies.Count) % movies.Count];
                     var startsLocal = todayLocal.AddDays(day).AddHours(slots[s]);
                     var startsUtc = startsLocal.AddHours(-PricingService.VietnamUtcOffsetHours);
-                    // Bỏ qua các suất sắp bắt đầu trong 30 phút tới: không kịp bán vé.
                     if (day >= 0 && startsUtc <= DateTime.UtcNow.AddMinutes(30)) continue;
 
                     var basePrice = room.RoomType switch
@@ -199,10 +184,6 @@ public class DbSeeder(
         }
     }
 
-    /// <summary>
-    /// Tạo lịch sử đặt vé để trang báo cáo và sơ đồ ghế có dữ liệu ngay từ đầu:
-    /// các suất đã qua bán được nhiều ghế, các suất sắp tới bán lác đác.
-    /// </summary>
     private async Task SeedBookingsAsync(CancellationToken ct)
     {
         var rnd = new Random(20260908);
@@ -276,7 +257,6 @@ public class DbSeeder(
                         SeatId = seat.SeatId,
                         Code = code,
                         QrSignature = qrSigner.Sign(code),
-                        // Suất đã chiếu xong thì vé coi như đã dùng.
                         Status = isPast ? TicketStatus.Used : TicketStatus.Valid,
                         CheckedInAtUtc = isPast ? st.StartsAtUtc.AddMinutes(-rnd.Next(5, 40)) : null,
                         CreatedAtUtc = paidAt
@@ -324,9 +304,6 @@ public class DbSeeder(
             Description = description,
             Language = "Tiếng Việt",
             Country = "Việt Nam",
-            // Không gán ảnh tạm: giao diện tự dựng bìa phim từ tên phim (web/src/lib/art.ts),
-            // trông có chiều sâu hơn hẳn ảnh khối màu phẳng và không cần mạng.
-            // Quản trị viên dán được ảnh thật ở trang /admin/phim bất cứ lúc nào.
             PosterUrl = null
         };
         db.Movies.Add(movie);

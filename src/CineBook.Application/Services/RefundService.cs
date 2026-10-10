@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 
 namespace CineBook.Application.Services;
 
-/// <summary>Luồng hủy vé của khách hàng — §07 tài liệu flow.</summary>
 public class RefundService(
     IAppDbContext db,
     BookingService bookings,
@@ -32,7 +31,6 @@ public class RefundService(
 
         var hoursLeft = (booking.Showtime.StartsAtUtc - clock.UtcNow).TotalHours;
 
-        // BR-14
         var rate = hoursLeft switch
         {
             var h when h >= _opt.RefundFullBeforeHours => 1.0m,
@@ -44,8 +42,6 @@ public class RefundService(
             return Result<decimal>.Fail("TOO_LATE",
                 $"Chỉ được hủy vé trước giờ chiếu ít nhất {_opt.RefundPartialBeforeHours} giờ.");
 
-        // Hủy vé và hoàn tiền là MỘT việc: cổng từ chối hoàn thì mọi thay đổi phải lùi lại,
-        // nếu không khách mất vé mà không nhận lại tiền.
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         booking.Status = BookingStatus.Refunded;
@@ -53,7 +49,6 @@ public class RefundService(
         booking.CancelReason = "Khách hủy vé";
         foreach (var t in booking.Tickets) t.Status = TicketStatus.Cancelled;
 
-        // Trả ghế lên sàn ngay để người khác mua được.
         await bookings.ReleaseSeatsOfBookingAsync(booking.Id, ct);
 
         var refund = await payments.RefundAsync(booking.Id, rate, "Khách hủy vé", userId, ct);
