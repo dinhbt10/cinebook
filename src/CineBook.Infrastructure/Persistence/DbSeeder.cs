@@ -184,6 +184,98 @@ public class DbSeeder(
         }
     }
 
+    // Bổ sung suất chiếu từ hôm nay tới hết ngày lastDayLocal (giờ Việt Nam) cho các phim đang chiếu.
+    // Khung giờ nào trong phòng đã có suất (chưa hủy) chồng lên thì bỏ qua, nên chạy lại nhiều lần vẫn an toàn.
+    public async Task<int> SeedShowtimesUntilAsync(DateOnly lastDayLocal, CancellationToken ct = default)
+    {
+        var movies = await db.Movies.AsNoTracking()
+            .Where(m => m.Status == MovieStatus.NowShowing)
+            .OrderBy(m => m.Title).ToListAsync(ct);
+        var rooms = await db.Rooms.AsNoTracking().Where(r => r.IsActive).OrderBy(r => r.CinemaId).ThenBy(r => r.Name).ToListAsync(ct);
+        if (movies.Count == 0 || rooms.Count == 0)
+        {
+            logger.LogWarning("Không có phim đang chiếu hoặc phòng chiếu, không tạo suất chiếu.");
+            return 0;
+        }
+
+        var rules = await db.PriceRules.AsNoTracking().Where(r => r.IsActive).OrderBy(r => r.Priority).ToListAsync(ct);
+        var pricing = new PricingService(db);
+        var allSeats = await db.Seats.AsNoTracking().Where(s => s.IsActive).ToListAsync(ct);
+        var seatsByRoom = allSeats.GroupBy(s => s.RoomId).ToDictionary(g => g.Key, g => g.ToList());
+
+        int[] slots = [9, 12, 15, 18, 21];
+        var nowUtc = DateTime.UtcNow;
+        var todayLocal = nowUtc.AddHours(PricingService.VietnamUtcOffsetHours).Date;
+        var lastLocal = lastDayLocal.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var fromUtc = todayLocal.AddHours(-PricingService.VietnamUtcOffsetHours);
+        var toUtc = lastLocal.AddDays(1).AddHours(-PricingService.VietnamUtcOffsetHours);
+
+        var existing = await db.Showtimes.AsNoTracking()
+            .Where(s => !s.IsCancelled && s.EndsAtUtc > fromUtc && s.StartsAtUtc < toUtc)
+            .Select(s => new { s.RoomId, s.StartsAtUtc, s.EndsAtUtc })
+            .ToListAsync(ct);
+        var busy = existing.GroupBy(s => s.RoomId)
+            .ToDictionary(g => g.Key, g => g.Select(s => (s.StartsAtUtc, s.EndsAtUtc)).ToList());
+
+        var created = 0;
+        for (var date = todayLocal; date <= lastLocal; date = date.AddDays(1))
+        {
+            var day = (date - todayLocal).Days;
+            for (var i = 0; i < rooms.Count; i++)
+            {
+                var room = rooms[i];
+                if (!seatsByRoom.TryGetValue(room.Id, out var seats)) continue;
+                if (!busy.TryGetValue(room.Id, out var roomBusy)) busy[room.Id] = roomBusy = [];
+
+                for (var s = 0; s < slots.Length; s++)
+                {
+                    var movie = movies[(day + i + s) % movies.Count];
+                    var startsUtc = date.AddHours(slots[s] - PricingService.VietnamUtcOffsetHours);
+                    var endsUtc = startsUtc.AddMinutes(movie.DurationMinutes + 15);
+                    if (startsUtc <= nowUtc.AddMinutes(30)) continue;
+                    if (roomBusy.Any(b => b.StartsAtUtc < endsUtc && startsUtc < b.EndsAtUtc)) continue;
+
+                    var basePrice = room.RoomType switch
+                    {
+                        RoomType.Imax => 120000m,
+                        RoomType.ThreeD => 90000m,
+                        _ => 75000m
+                    };
+
+                    var showtime = new Showtime
+                    {
+                        MovieId = movie.Id,
+                        RoomId = room.Id,
+                        StartsAtUtc = startsUtc,
+                        EndsAtUtc = endsUtc,
+                        BasePrice = basePrice,
+                        SubtitleMode = SubtitleMode.Subtitled,
+                        IsOnSale = true
+                    };
+                    db.Showtimes.Add(showtime);
+                    roomBusy.Add((startsUtc, endsUtc));
+                    created++;
+
+                    foreach (var seat in seats)
+                    {
+                        db.ShowtimeSeats.Add(new ShowtimeSeat
+                        {
+                            ShowtimeId = showtime.Id,
+                            SeatId = seat.Id,
+                            Status = SeatStatus.Available,
+                            Price = pricing.CalculateSeatPrice(
+                                basePrice, startsUtc, room.CinemaId, room.RoomType, seat.SeatType, rules)
+                        });
+                    }
+                }
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
+        logger.LogInformation("Đã tạo {Count} suất chiếu đến hết ngày {Last}", created, lastDayLocal);
+        return created;
+    }
+
     private async Task SeedBookingsAsync(CancellationToken ct)
     {
         var rnd = new Random(20260908);

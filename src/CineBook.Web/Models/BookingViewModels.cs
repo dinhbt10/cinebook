@@ -10,6 +10,7 @@ public class BookingPageViewModel
     public BookingDto? Booking { get; set; }
     public bool Resumed { get; set; }
     public string Step { get; set; } = "seats";
+    public DateTime? SelectExpiresAtUtc { get; set; }
     public string? Error { get; set; }
     public string? AbortError { get; set; }
     public List<Guid> SelectedSeatIds { get; set; } = new List<Guid>();

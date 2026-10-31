@@ -74,16 +74,12 @@ public class BookingService(
 
         if (showtime is null)
             return Result<BookingDto>.Fail("SHOWTIME_NOT_FOUND", "Không tìm thấy suất chiếu.");
-        if (showtime.IsCancelled)
-            return Result<BookingDto>.Fail("SHOWTIME_CANCELLED", "Suất chiếu đã bị hủy.");
-        if (!showtime.IsOnSale)
-            return Result<BookingDto>.Fail("NOT_ON_SALE", "Suất chiếu chưa mở bán vé.");
 
         var now = clock.UtcNow;
 
-        if (showtime.StartsAtUtc <= now.AddMinutes(_opt.MinutesBeforeStartToBlock))
-            return Result<BookingDto>.Fail("TOO_LATE",
-                $"Suất chiếu sắp bắt đầu, ngừng bán trước giờ chiếu {_opt.MinutesBeforeStartToBlock} phút.");
+        var bookable = CheckBookable(showtime, now);
+        if (!bookable.Succeeded)
+            return Result<BookingDto>.Fail(bookable.ErrorCode!, bookable.Error!);
 
         var holdExpires = now.AddMinutes(_opt.HoldMinutes);
 
@@ -112,7 +108,8 @@ public class BookingService(
             WHERE "ShowtimeId" = {req.ShowtimeId}
               AND "SeatId" = ANY({seatIds})
               AND ( "Status" = {(int)SeatStatus.Available}
-                    OR ( "Status" = {(int)SeatStatus.Held} AND "HoldExpiresAtUtc" < {now} ) )
+                    OR ( "Status" = {(int)SeatStatus.Held} AND "HoldExpiresAtUtc" < {now} )
+                    OR ( "Status" = {(int)SeatStatus.Held} AND "HeldByUserId" = {userId} AND "BookingId" IS NULL ) )
             """, ct);
 
         if (affected != seatIds.Length)
@@ -150,10 +147,80 @@ public class BookingService(
         if (booking.Total < 0) booking.Total = 0;
 
         await db.SaveChangesAsync(ct);
+        await ReleaseSelectionAsync(userId, showtime.Id, null, ct);
         await tx.CommitAsync(ct);
 
         return Result<BookingDto>.Ok(await MapAsync(booking.Id, ct));
     }
+
+    private Result CheckBookable(Showtime showtime, DateTime now)
+    {
+        if (showtime.IsCancelled)
+            return Result.Fail("SHOWTIME_CANCELLED", "Suất chiếu đã bị hủy.");
+        if (!showtime.IsOnSale)
+            return Result.Fail("NOT_ON_SALE", "Suất chiếu chưa mở bán vé.");
+        if (showtime.StartsAtUtc <= now.AddMinutes(_opt.MinutesBeforeStartToBlock))
+            return Result.Fail("TOO_LATE",
+                $"Suất chiếu sắp bắt đầu, ngừng bán trước giờ chiếu {_opt.MinutesBeforeStartToBlock} phút.");
+        return Result.Ok();
+    }
+
+    // Khoá tạm một ghế ngay khi khách bấm chọn ở bước chọn ghế (chưa có đơn, BookingId = NULL),
+    // để người khác thấy ghế đã có người giữ. Hết expiresAtUtc thì ghế tự coi là trống.
+    public async Task<Result> SelectSeatAsync(
+        Guid userId, Guid showtimeId, Guid seatId, DateTime expiresAtUtc, CancellationToken ct = default)
+    {
+        var showtime = await db.Showtimes.AsNoTracking().FirstOrDefaultAsync(s => s.Id == showtimeId, ct);
+        if (showtime is null)
+            return Result.Fail("SHOWTIME_NOT_FOUND", "Không tìm thấy suất chiếu.");
+
+        var now = clock.UtcNow;
+        var bookable = CheckBookable(showtime, now);
+        if (!bookable.Succeeded) return bookable;
+
+        var mine = await db.ShowtimeSeats.CountAsync(x => x.ShowtimeId == showtimeId
+            && x.SeatId != seatId
+            && x.Status == SeatStatus.Held
+            && x.HeldByUserId == userId
+            && x.BookingId == null
+            && x.HoldExpiresAtUtc > now, ct);
+        if (mine >= _opt.MaxSeatsPerBooking)
+            return Result.Fail("TOO_MANY_SEATS", $"Mỗi lần đặt tối đa {_opt.MaxSeatsPerBooking} ghế.");
+
+        var affected = await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "ShowtimeSeats"
+            SET "Status" = {(int)SeatStatus.Held},
+                "HeldByUserId" = {userId},
+                "HoldExpiresAtUtc" = {expiresAtUtc},
+                "BookingId" = NULL
+            WHERE "ShowtimeId" = {showtimeId}
+              AND "SeatId" = {seatId}
+              AND ( "Status" = {(int)SeatStatus.Available}
+                    OR ( "Status" = {(int)SeatStatus.Held} AND "HoldExpiresAtUtc" < {now} )
+                    OR ( "Status" = {(int)SeatStatus.Held} AND "HeldByUserId" = {userId} AND "BookingId" IS NULL ) )
+            """, ct);
+
+        return affected == 1
+            ? Result.Ok()
+            : Result.Fail("SEATS_TAKEN", "Ghế này vừa có người khác chọn. Vui lòng chọn ghế khác.");
+    }
+
+    // Nhả ghế khoá tạm ở bước chọn ghế của khách; seatId = null thì nhả hết ghế của khách trong suất này.
+    public Task<int> ReleaseSelectionAsync(
+        Guid userId, Guid showtimeId, Guid? seatId, CancellationToken ct = default) =>
+        seatId is { } one
+            ? db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "ShowtimeSeats"
+                SET "Status" = {(int)SeatStatus.Available}, "HeldByUserId" = NULL, "HoldExpiresAtUtc" = NULL
+                WHERE "ShowtimeId" = {showtimeId} AND "SeatId" = {one}
+                  AND "Status" = {(int)SeatStatus.Held} AND "HeldByUserId" = {userId} AND "BookingId" IS NULL
+                """, ct)
+            : db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE "ShowtimeSeats"
+                SET "Status" = {(int)SeatStatus.Available}, "HeldByUserId" = NULL, "HoldExpiresAtUtc" = NULL
+                WHERE "ShowtimeId" = {showtimeId}
+                  AND "Status" = {(int)SeatStatus.Held} AND "HeldByUserId" = {userId} AND "BookingId" IS NULL
+                """, ct);
 
     private async Task CloseOwnPendingAsync(Guid userId, Guid showtimeId, DateTime now, CancellationToken ct)
     {

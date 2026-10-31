@@ -5,6 +5,7 @@ using CineBook.Infrastructure;
 using CineBook.Infrastructure.Persistence;
 using CineBook.Infrastructure.Services;
 using CineBook.Web.Common;
+using CineBook.Web.Hubs;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,8 @@ builder.Services.AddControllersWithViews().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+builder.Services.AddSignalR();
 
 builder.Services.AddSession(options =>
 {
@@ -106,6 +109,16 @@ if (app.Configuration.GetValue("Database:AutoMigrate", true))
         await scope.ServiceProvider.GetRequiredService<DbSeeder>().SeedAsync();
 }
 
+// dotnet run --project src/CineBook.Web -- --seed-showtimes-until 2026-11-30
+var seedUntil = app.Configuration["seed-showtimes-until"];
+if (!string.IsNullOrWhiteSpace(seedUntil))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<DbSeeder>()
+        .SeedShowtimesUntilAsync(DateOnly.Parse(seedUntil));
+    return;
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -133,6 +146,8 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapHub<SeatHub>(SeatHub.Path);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", utc = DateTime.UtcNow }))
     .AllowAnonymous();

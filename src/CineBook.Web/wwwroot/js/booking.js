@@ -86,12 +86,37 @@ $(function () {
             state.seatMap = data;
             state.seatById = {};
             data.seats.forEach(function (s) { state.seatById[s.seatId] = s; });
+            // Server là nguồn sự thật: ghế đang chọn = ghế mình đang khoá tạm (trừ ghế đang chờ server trả lời).
+            state.selected = state.selected.filter(function (id) {
+                return pendingSeats[id] || (state.seatById[id] && state.seatById[id].heldByMe);
+            });
+            data.seats.forEach(function (s) {
+                if (s.heldByMe && !pendingSeats[s.seatId] && state.selected.indexOf(s.seatId) < 0) state.selected.push(s.seatId);
+            });
             renderSeats();
             renderAside();
         }).always(function () {
             state.fetching = false;
             $('[data-refresh] svg').removeClass('animate-spin');
+            if (state.refetch) {
+                state.refetch = false;
+                loadSeatMap();
+            }
         });
+    }
+
+    var pendingSeats = {};
+
+    function seatRequest(action, id, done) {
+        pendingSeats[id] = true;
+        $.post('/Booking/' + action + '/' + showtimeId, { seatId: id, __RequestVerificationToken: token })
+            .done(function (r) { if (done) done(r); })
+            .fail(function () { if (done) done({ ok: false, message: 'Không kết nối được máy chủ, vui lòng thử lại.' }); })
+            .always(function () {
+                delete pendingSeats[id];
+                renderSeats();
+                renderAside();
+            });
     }
 
     function seatTitle(seat, taken) {
@@ -238,10 +263,23 @@ $(function () {
 
     $(document).on('click', '[data-seat]', function () {
         var id = $(this).attr('data-seat');
+        if (pendingSeats[id]) return;
         state.error = null;
         var at = state.selected.indexOf(id);
-        if (at >= 0) state.selected.splice(at, 1);
-        else if (state.selected.length < maxSeats()) state.selected.push(id);
+        if (at >= 0) {
+            state.selected.splice(at, 1);
+            seatRequest('ReleaseSeat', id);
+        } else if (state.selected.length < maxSeats()) {
+            state.selected.push(id);
+            seatRequest('SelectSeat', id, function (r) {
+                if (r.ok) return;
+                if (r.code === 'SELECT_TIMEOUT') return selectTimedOut();
+                var i = state.selected.indexOf(id);
+                if (i >= 0) state.selected.splice(i, 1);
+                state.error = r.message;
+                loadSeatMap();
+            });
+        }
         renderSeats();
         renderAside();
     });
@@ -275,7 +313,45 @@ $(function () {
         });
         add('PromotionCode', state.promo.trim());
         CB.setLoading($('[data-hold]'), true);
+        clearInterval(selectTimer);
     });
+
+    var $selectCountdown = $('[data-select-countdown]');
+    var selectExpires = new Date($selectCountdown.attr('data-select-countdown')).getTime();
+
+    function tickSelect() {
+        var left = Math.max(0, Math.floor((selectExpires - Date.now()) / 1000));
+        var urgent = left <= 60;
+        $selectCountdown.attr('class', cx('flex items-center gap-2 rounded-xl border px-3.5 py-2',
+            urgent ? 'border-velvet-500/45 bg-velvet-950' : 'border-brand-600/40 bg-brand-950'));
+        $selectCountdown.children('svg').attr('class', 'lucide lucide-timer ' + (urgent ? 'text-velvet-400' : 'text-brand-400'));
+        $selectCountdown.find('[data-countdown-text]').attr('class', cx('font-mono text-lg font-bold tabular',
+            urgent ? 'text-velvet-400' : 'text-brand-400')).text(CB.countdown(left));
+        return left;
+    }
+
+    function selectTimedOut() {
+        clearInterval(selectTimer);
+        stopPolling();
+        location.replace($selectCountdown.attr('data-timeout-url'));
+    }
+
+    tickSelect();
+    var selectTimer = setInterval(function () {
+        if (tickSelect() <= 0) selectTimedOut();
+    }, 1000);
+
+    if (window.signalR) {
+        var hub = new signalR.HubConnectionBuilder().withUrl('/hubs/seats').withAutomaticReconnect().build();
+        var joinShowtime = function () { return hub.invoke('JoinShowtime', showtimeId); };
+        hub.on('SeatsChanged', function () {
+            if (state.step !== 'seats') return;
+            if (state.fetching) state.refetch = true;
+            else loadSeatMap();
+        });
+        hub.onreconnected(joinShowtime);
+        hub.start().then(joinShowtime).catch(function () { });
+    }
 
     var voucher = { mounted: false, amount: null, cache: {}, showInput: false, manual: '', error: null };
 

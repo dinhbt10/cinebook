@@ -96,6 +96,16 @@
     </section>
 
     <section id="lich-chieu" class="mx-auto max-w-6xl scroll-mt-20 px-4 py-12">
+    @if (ViewBag.Notice != null)
+    {
+        <div role="alert" class="mb-6 flex items-start gap-3 rounded-xl border border-velvet-500/35 bg-velvet-950 px-4 py-3 text-[13px] text-velvet-400" data-notice>
+            @Html.Icon("timer", 15, "mt-0.5 shrink-0")
+            <span class="flex-1">@ViewBag.Notice</span>
+            <button type="button" data-dismiss="[data-notice]" aria-label="Đóng thông báo" class="shrink-0 opacity-70 hover:opacity-100">
+                @Html.Icon("x", 15)
+            </button>
+        </div>
+    }
         <div class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
             <div class="min-w-0">
                 <p class="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-500">

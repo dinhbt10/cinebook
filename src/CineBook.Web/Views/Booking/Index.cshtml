@@ -147,6 +147,16 @@
                 }
                 else
                 {
+                    var selectLeft = (int)Math.Max(0, (Model.SelectExpiresAtUtc!.Value - DateTime.UtcNow).TotalSeconds);
+                    <div data-select-countdown="@Model.SelectExpiresAtUtc.Value.ToString("o")"
+                         data-timeout-url="@Url.Action("SeatTimeout", new { id = map.ShowtimeId })"
+                         class="flex items-center gap-2 rounded-xl border border-brand-600/40 bg-brand-950 px-3.5 py-2">
+                        @Html.Icon("timer", 15, "text-brand-400")
+                        <div class="leading-tight">
+                            <p data-countdown-text class="font-mono text-lg font-bold tabular text-brand-400">@Fmt.Countdown(selectLeft)</p>
+                            <p class="text-[11px] text-faint">thời gian chọn ghế còn lại</p>
+                        </div>
+                    </div>
                     <div data-chosen>
                         <p class="mb-2 text-[13px] font-semibold text-muted">Ghế đã chọn</p>
                         <p class="text-[13px] text-faint">Chưa chọn ghế nào</p>
@@ -196,5 +206,6 @@ else
 }
 
 @section Scripts {
+    <script src="~/lib/signalr/signalr.min.js"></script>
     <script src="~/js/booking.js" asp-append-version="true"></script>
 }

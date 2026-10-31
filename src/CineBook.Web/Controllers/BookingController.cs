@@ -1,12 +1,17 @@
+using System.Globalization;
+using CineBook.Application.Common;
 using CineBook.Application.Dtos;
 using CineBook.Application.Services;
 using CineBook.Domain.Enums;
 using CineBook.Infrastructure.Persistence;
 using CineBook.Web.Common;
+using CineBook.Web.Hubs;
 using CineBook.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace CineBook.Web.Controllers;
 
@@ -14,19 +19,25 @@ namespace CineBook.Web.Controllers;
 public class BookingController : Controller
 {
     private const string SessionBookingKey = "BookingId";
+    private const string SelectDeadlineKey = "SelectDeadline:";
 
     private readonly CineBookDbContext _context;
     private readonly BookingService _bookings;
     private readonly PaymentService _payments;
     private readonly PromotionService _promotions;
+    private readonly BookingOptions _options;
+    private readonly IHubContext<SeatHub> _seatHub;
 
     public BookingController(CineBookDbContext context, BookingService bookings,
-        PaymentService payments, PromotionService promotions)
+        PaymentService payments, PromotionService promotions, IOptions<BookingOptions> options,
+        IHubContext<SeatHub> seatHub)
     {
         _context = context;
         _bookings = bookings;
         _payments = payments;
         _promotions = promotions;
+        _options = options.Value;
+        _seatHub = seatHub;
     }
 
     [AllowAnonymous]
@@ -91,7 +102,47 @@ public class BookingController : Controller
             model.ComboQuantities = ParseCombos(initCombos);
         model.PromotionCode = TempData["InitPromo"] as string;
         model.Step = TempData["InitStep"] as string ?? "seats";
+        model.SelectExpiresAtUtc = SelectDeadline(id, now) ?? StartSelectDeadline(id, now);
         return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SelectSeat(Guid id, Guid seatId)
+    {
+        var deadline = SelectDeadline(id, DateTime.UtcNow);
+        if (deadline == null)
+            return Json(new { ok = false, code = "SELECT_TIMEOUT", message = "Đã hết thời gian chọn ghế." });
+
+        var result = await _bookings.SelectSeatAsync(User.UserId(), id, seatId, deadline.Value);
+        if (result.Succeeded)
+            await _seatHub.NotifySeatsChanged(id);
+        return Json(new { ok = result.Succeeded, code = result.ErrorCode, message = result.Error });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReleaseSeat(Guid id, Guid seatId)
+    {
+        if (await _bookings.ReleaseSelectionAsync(User.UserId(), id, seatId) > 0)
+            await _seatHub.NotifySeatsChanged(id);
+        return Json(new { ok = true });
+    }
+
+    public async Task<IActionResult> SeatTimeout(Guid id)
+    {
+        await ReleaseSelectionAsync(id);
+
+        var movieId = await _context.Showtimes
+            .Where(s => s.Id == id)
+            .Select(s => (Guid?)s.MovieId)
+            .FirstOrDefaultAsync();
+
+        TempData["Notice"] = "Đã hết " + _options.SelectSeatsMinutes +
+            " phút chọn ghế. Vui lòng chọn lại suất chiếu để tiếp tục đặt vé.";
+        if (movieId == null)
+            return RedirectToAction("Index", "Home");
+        return Redirect(Url.Action("Details", "Movies", new { id = movieId }) + "#lich-chieu");
     }
 
     public async Task<IActionResult> SeatMap(Guid id)
@@ -146,6 +197,8 @@ public class BookingController : Controller
         var result = await _bookings.HoldSeatsAsync(User.UserId(), request);
         if (result.Succeeded)
         {
+            HttpContext.Session.Remove(SelectDeadlineKey + id);
+            await _seatHub.NotifySeatsChanged(id);
             HttpContext.Session.SetString(SessionBookingKey, result.Value!.Id.ToString());
             TempData["HeldSeats"] = string.Join(",", model.SeatIds.Distinct());
             return RedirectToAction("Index", new { id });
@@ -211,6 +264,7 @@ public class BookingController : Controller
         }
 
         HttpContext.Session.Remove(SessionBookingKey);
+        await _seatHub.NotifySeatsChanged(id);
         if (model.HeldSeats != null && booking != null)
         {
             TempData["InitCombos"] = string.Join(",", booking.Combos.Select(c => c.ComboId + ":" + c.Quantity));
@@ -223,6 +277,8 @@ public class BookingController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Abort(Guid id)
     {
+        await ReleaseSelectionAsync(id);
+
         var bookingId = SessionBookingId();
         if (bookingId == null)
         {
@@ -238,6 +294,7 @@ public class BookingController : Controller
         }
 
         HttpContext.Session.Remove(SessionBookingKey);
+        await _seatHub.NotifySeatsChanged(id);
         TempData["Notice"] = "Đã hủy đặt vé. Ghế bạn giữ đã được trả lại.";
         return RedirectToAction("Index", "Home");
     }
@@ -290,6 +347,29 @@ public class BookingController : Controller
             .OrderBy(c => c.Price)
             .Select(c => new ComboDto(c.Id, c.Name, c.Description, c.Price, c.ImageUrl))
             .ToListAsync();
+    }
+
+    // Hạn chọn ghế lưu trong Session theo từng suất, để F5 không reset đồng hồ và kéo dài thời gian khoá ghế.
+    private DateTime? SelectDeadline(Guid showtimeId, DateTime now)
+    {
+        var value = HttpContext.Session.GetString(SelectDeadlineKey + showtimeId);
+        return DateTime.TryParse(value, null, DateTimeStyles.RoundtripKind, out var deadline) && deadline > now
+            ? deadline
+            : null;
+    }
+
+    private DateTime StartSelectDeadline(Guid showtimeId, DateTime now)
+    {
+        var deadline = now.AddMinutes(_options.SelectSeatsMinutes);
+        HttpContext.Session.SetString(SelectDeadlineKey + showtimeId, deadline.ToString("o"));
+        return deadline;
+    }
+
+    private async Task ReleaseSelectionAsync(Guid showtimeId)
+    {
+        HttpContext.Session.Remove(SelectDeadlineKey + showtimeId);
+        if (await _bookings.ReleaseSelectionAsync(User.UserId(), showtimeId, null) > 0)
+            await _seatHub.NotifySeatsChanged(showtimeId);
     }
 
     private Guid? SessionBookingId()

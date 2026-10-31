@@ -68,6 +68,7 @@ public class MoviesController : Controller
         model.SelectedDate = today;
         model.Days = Enumerable.Range(0, 7).Select(i => today.AddDays(i)).ToList();
         model.Showtimes = (await _showtimes.SearchAsync(id, null, today)).ToList();
+        ViewBag.Notice = TempData["Notice"];
         return View(model);
     }
 
